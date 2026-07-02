@@ -162,6 +162,19 @@
 
   .confetti { position: fixed; inset: 0; z-index: 70; pointer-events: none; }
 
+  /* ------- about panel ------- */
+  .ab-check { display: flex; align-items: center; gap: 12px; justify-content: center; margin: 18px 0 8px; }
+  .ab-status { font-size: 12.5px; color: var(--dim); }
+  .ab-status.ok { color: var(--green); font-weight: 600; }
+  .ab-status.warn { color: var(--amber); }
+  .ab-meta { text-align: left; margin: 12px 2px 4px; padding: 14px 16px; background: #fafbfd;
+    border: 1px solid var(--line); border-radius: 10px; font-size: 12.5px; }
+  .ab-meta dt { color: var(--faint); font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; margin-top: 8px; }
+  .ab-meta dt:first-child { margin-top: 0; }
+  .ab-meta dd { color: var(--text); word-break: break-all; margin-top: 2px; }
+  .ab-meta a { color: var(--blue); text-decoration: none; }
+  .ab-meta a:hover { text-decoration: underline; }
+
   /* ------- project list card ------- */
   .card {
     background: var(--card); border: 1px solid var(--line); border-radius: 10px;
@@ -334,6 +347,7 @@
       <input type="checkbox" id="selall" title="Select all projects">
       <label for="selall">All</label>
       <span class="spacer"></span>
+      <button class="btn ghost" id="about" title="About Launchpad">About</button>
       <button class="btn red" id="stopall">Stop all</button>
       <button class="btn ghost" id="quit" title="Stop everything and close Launchpad">Quit</button>
     </div>
@@ -379,6 +393,32 @@
   </div>
 </div>
 <canvas id="confetti" class="confetti" hidden></canvas>
+
+<div class="upscrim" id="aboutmodal">
+  <div class="upcard about">
+    <div class="uprocket">
+      <svg width="34" height="34" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#eef3fe"/><path d="M16 6c3 2 4.5 5 4.5 8.5L16 19l-4.5-4.5C11.5 11 13 8 16 6z" fill="#2563eb"/><circle cx="16" cy="12.5" r="1.8" fill="#fff"/><path d="M13 18l-2 4 3-1.2M19 18l2 4-3-1.2" fill="#f0b429"/></svg>
+    </div>
+    <h2>Launchpad</h2>
+    <div class="upsub" id="ab-version">Version —</div>
+
+    <div class="ab-check">
+      <button class="btn blue" id="ab-check-btn">Check for updates</button>
+      <span class="ab-status" id="ab-status"></span>
+    </div>
+
+    <dl class="ab-meta">
+      <dt>Projects folder</dt>
+      <dd id="ab-folder">—</dd>
+      <dt>Source code</dt>
+      <dd><a href="#" id="ab-repo">github.com/flodisterhoft-ops/launchpad</a></dd>
+    </dl>
+
+    <div class="upactions">
+      <button class="btn ghost" id="ab-close" style="flex:1">Close</button>
+    </div>
+  </div>
+</div>
 
 <script>
 'use strict';
@@ -514,6 +554,7 @@ function render() {
   } else banner.classList.remove('show');
 
   syncUpdateUI(state.update);
+  refreshAbout();
 
   // Rebuild the list only when something it shows actually changed — a
   // constant repaint flickers and can swallow a click mid-press.
@@ -649,7 +690,9 @@ function closeModal() { $('#upmodal').classList.remove('show'); }
 function syncUpdateUI(up) {
   const ub = $('#upbanner');
 
-  if (!up || !up.status || up.status === 'stopped') { ub.classList.remove('show'); return; }
+  // check-only statuses (from the About panel) never drive the popup/banner
+  const popupStatuses = ['available', 'downloading', 'ready', 'error'];
+  if (!up || !popupStatuses.includes(up.status)) { ub.classList.remove('show'); return; }
   const ver = up.version;
   umVersion = ver;
   umLast = up;
@@ -780,6 +823,55 @@ function celebrate() {
   }
   raf = requestAnimationFrame(frame);
 }
+
+// ---------------- About panel: version + check for updates ----------------
+let aboutOpen = false;
+let abChecking = false;
+
+function refreshAbout() {
+  if (!aboutOpen || !state) return;
+  $('#ab-version').textContent = 'Version ' + (state.version || '—');
+  $('#ab-folder').textContent = state.projectsDir || '—';
+  if (!abChecking) return;
+  const st = state.update && state.update.status;
+  const el = $('#ab-status'), btn = $('#ab-check-btn');
+  if (st === 'checking') { el.textContent = 'Checking…'; el.className = 'ab-status'; btn.disabled = true; return; }
+  btn.disabled = false; abChecking = false;
+  if (st === 'none') { el.textContent = "You're on the latest version ✓"; el.className = 'ab-status ok'; }
+  else if (st === 'available') { el.textContent = ''; closeAbout(); }   // the "What's new" popup takes over
+  else if (st === 'dev') { el.textContent = 'Updates work in the installed app.'; el.className = 'ab-status warn'; }
+  else if (st === 'check-failed') { el.textContent = "Couldn't check — try again later."; el.className = 'ab-status warn'; }
+}
+
+function openAbout() {
+  aboutOpen = true; abChecking = false;
+  $('#ab-status').textContent = ''; $('#ab-status').className = 'ab-status';
+  $('#ab-check-btn').disabled = false;
+  refreshAbout();
+  $('#aboutmodal').classList.add('show');
+}
+function closeAbout() { aboutOpen = false; $('#aboutmodal').classList.remove('show'); }
+
+$('#about').addEventListener('click', openAbout);
+$('#ab-close').addEventListener('click', closeAbout);
+$('#aboutmodal').addEventListener('click', e => { if (e.target.id === 'aboutmodal') closeAbout(); });
+$('#ab-repo').addEventListener('click', e => {
+  e.preventDefault();
+  const url = (state && state.repoUrl) || 'https://github.com/flodisterhoft-ops/launchpad';
+  if (window.shell) window.shell.openExternal(url); else window.open(url, '_blank');
+});
+$('#ab-check-btn').addEventListener('click', () => {
+  if (!window.shell) {
+    abChecking = false;
+    $('#ab-status').textContent = 'Updates work in the installed app.';
+    $('#ab-status').className = 'ab-status warn';
+    return;
+  }
+  abChecking = true;
+  $('#ab-status').textContent = 'Checking…'; $('#ab-status').className = 'ab-status';
+  $('#ab-check-btn').disabled = true;
+  window.shell.checkUpdates();
+});
 
 poll();
 setInterval(poll, 2000);

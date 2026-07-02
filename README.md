@@ -1,118 +1,135 @@
+<div align="center">
+
+<img src="assets/icon-256.png" width="96" alt="Launchpad">
+
 # Launchpad
 
-One window to run any project locally and/or share it with a temporary public
-link. Installs per-user, lives in the system tray, and **updates itself** from
-GitHub Releases.
+**Run any project on your computer with one click — or share it with a live link in seconds.**
 
-## Install & use
+A tiny desktop app that finds every project in a folder and lets you preview it
+locally, on your phone over Wi‑Fi, or on the public internet with a temporary
+link you can send to anyone. It lives in your system tray and keeps itself up to
+date.
 
-Run **`Launchpad-Setup-x.y.z.exe`** once — it installs for the current user (no
-admin), adds a desktop + Start-menu shortcut, and launches. From then on open it
-from the **Launchpad** shortcut.
+<img src="assets/dashboard.png" width="720" alt="Launchpad dashboard">
 
-- **Start** — run the project on this computer (localhost + Wi-Fi link for phones)
-- **Share** — public `https://…trycloudflare.com` link to send to anyone (starts
-  the project too; the first Share ever downloads the sharing engine once)
-- **New link** — swap the public link for a fresh one
-- **…** — show the technical output log
-- **change** (top, next to the folder path) — pick which folder to scan for projects
-- Checkboxes (or **All**) → a bar to start/share/stop several at once
+</div>
 
-Window & tray:
+---
 
-- **Tray icon — single-click** → quick panel of the running projects (open / copy
-  link / fresh link / stop) · **double-click** → open the main window
-- **Tray icon — right-click** → menu (Open, Stop all, Quit)
-- **Titlebar ✕** → closes to the tray (everything keeps running)
-- **Quit** (in-app, or tray menu) → stops everything and exits
+## Why
 
-New folders appear automatically. The projects folder is remembered.
+Spinning up a local server or a tunnel for every little project gets old fast —
+different commands, different ports, remembering which is running. Launchpad
+turns all of it into one list of buttons.
+
+- **▶ Start** — runs the project on your computer, with a `localhost` link and a
+  Wi‑Fi link your phone can open on the same network.
+- **⇗ Share** — creates a public `https://…trycloudflare.com` link you can text
+  to anyone. Great for showing a client, or testing camera/GPS on a real phone.
+- Handles plain HTML sites, `npm` dev servers, and Cloudflare Pages/Wrangler
+  projects — it detects which and does the right thing.
+
+## Features
+
+|  |  |
+|---|---|
+| 🗂️ **Every project, one list** | Point it at a folder; it lists each project and remembers your choices. New folders appear automatically. |
+| 📱 **Phone-ready** | Local + Wi‑Fi links out of the box; public HTTPS links for anything that needs a real device. |
+| 🔗 **One-click sharing** | Public links via Cloudflare quick tunnels — one click, fresh link, no account. |
+| 🎯 **Smart detection** | Static sites, `npm run dev`, and `wrangler pages dev` all just work. |
+| 🖥️ **Lives in the tray** | Close the window and it keeps running; a tray panel gives you quick controls. |
+| 🚀 **Auto-updates** | Checks for new versions, shows a changelog, updates itself. |
+
+## Screenshots
+
+<div align="center">
+
+<table>
+<tr>
+<td width="50%"><img src="assets/update.png" alt="Update popup with changelog"><br><sub><b>Auto-update</b> — a “What’s new” popup, a progress bar, then a little celebration.</sub></td>
+<td width="50%"><img src="assets/about.png" alt="About panel"><br><sub><b>About</b> — version, one-click “Check for updates”, and your projects folder.</sub></td>
+</tr>
+</table>
+
+<img src="assets/tray.png" width="300" alt="Tray quick panel">
+
+<sub><b>Tray panel</b> — see what’s running and open, copy a link, or stop it without opening the window.</sub>
+
+</div>
+
+## Install
+
+1. Download the latest **`Launchpad-Setup.exe`** from
+   [Releases](https://github.com/flodisterhoft-ops/launchpad/releases/latest).
+2. Run it — it installs just for you (no admin) and adds a **Launchpad** shortcut.
+3. Open Launchpad and click **change** to point it at the folder where your
+   projects live.
+
+> First run shows a Windows SmartScreen notice (the app isn’t code-signed):
+> **More info → Run anyway**. The first time you **Start** a project, allow the
+> firewall prompt so phones on your Wi‑Fi can reach it.
+
+Plain HTML/CSS/JS projects and sharing work out of the box. Projects that use
+`npm` or `wrangler` need [Node.js](https://nodejs.org) installed — Launchpad
+tells you when that’s the case.
+
+## Using it
+
+- **Start / Share** per project, or tick several (or **All**) and act on them at once.
+- **New link** swaps a public link for a fresh one.
+- **…** shows the raw server output if something misbehaves.
+- Closing the window keeps everything running in the tray. **Single-click** the
+  tray icon for the quick panel, **double-click** to reopen the window.
+- **Quit** (in-app or the tray menu) stops everything.
 
 ## Auto-update
 
-The install location is baked in, so updates are automatic — no links to resend:
+Launchpad keeps itself current — you never re-download it:
 
-1. On launch (and every few hours) it checks GitHub for a newer version.
-2. If there is one, a **“What’s new”** popup appears listing the changes.
-3. Click **Update now** → a progress bar fills, then a little **confetti
-   celebration** plays and the app restarts on the new version.
-4. Or click **Later** — it tucks into a slim bar you can reopen any time.
+1. It checks for a new version on launch and every few hours (or on demand from
+   **About → Check for updates**).
+2. A **What’s new** popup lists the changes.
+3. **Update now** → progress bar → 🎉 → it restarts on the new version.
 
-To publish a new version (see **Development** below) you run one command; every
-installed copy shows the changelog and updates on its own.
+---
 
-## Sending it to someone
+## For developers
 
-Send the **`Launchpad-Setup-x.y.z.exe`** file once. They run it, then click
-**change** to point it at the folder where their projects live. After that they
-get every future update automatically — you never send another file.
+The app is [Electron](https://www.electronjs.org/); the logic lives in a small
+plain-Node control server (`server.js`) that also serves the dashboard.
 
-First run shows a Windows SmartScreen warning (unsigned): *More info → Run anyway*.
-First **Start** shows a firewall prompt: *Allow* (needed for the Wi-Fi links).
+```bash
+npm install
+npx electron .          # run the app from source
+node server.js          # or just the server, opened in a browser tab
+```
 
-Works out of the box for plain HTML/CSS/JS sites and for sharing. Projects that
-need `npm`/`wrangler` only run if Node.js is installed (the buttons say so
-otherwise).
-
-## How projects are detected
-
-| Project has | Served with |
+| File | Role |
 |---|---|
-| `overrides` entry with a `command` in config | your command (`{port}` is replaced) |
-| `wrangler.toml` or `functions/` | `npx wrangler pages dev` (Pages Functions, D1, R2 work) |
-| `package.json` with a `dev`/`start` script | `npm run dev` — its port is auto-detected |
-| anything else | built-in static file server (uses `public/`, `dist/`, `build/`… if the root has no `index.html`) |
+| `server.js` | Control server — scans projects, runs servers/tunnels, serves the UI & API |
+| `public/index.html` | The dashboard (single file) |
+| `public/tray.html` | The tray quick panel |
+| `electron-main.js` / `preload.js` | Electron shell — window, tray, auto-updater |
+| `publish.mjs` | Build + release to GitHub with a changelog |
+| `make-icon.py` / `capture.js` | Regenerate the icon / the screenshots above |
 
-Ports are auto-assigned from 8101 and remembered. Folders starting with `_` or
-`.` are skipped.
+### Publishing an update
 
-## config.json
-
-Lives in the app's data folder (`%APPDATA%\launchpad\config.json`), written by
-the app. You normally never edit it — use the **change** button and the in-app
-controls. Shape:
-
-```json
-{
-  "projectsDir": "C:/Users/you/Documents/My Projects",
-  "overrides": {
-    "Viktor Hekalow Website": { "port": 8788 },
-    "Some Project": { "command": "npm run preview -- --port {port}", "port": 8200 }
-  },
-  "exclude": ["Some Folder To Hide"]
-}
+```bash
+node publish.mjs patch                      # 1.3.x -> 1.3.(x+1), build + release
+node publish.mjs minor                      # -> 1.4.0
+node publish.mjs patch "Fixed X" "Added Y"  # with an explicit changelog
 ```
 
-## Development
+It bumps the version, builds the installer, bakes a **changelog** into the
+update feed (auto from your commit messages, or the notes you pass) and the
+GitHub release, uploads everything via the `gh` CLI, and tags it. Every
+installed copy shows that changelog and updates on its own.
 
-Source lives in `_Launchpad/`. The app is Electron; the work happens in `server.js`.
+## Tech
 
-- `server.js` — control server (plain Node) · `public/index.html` — main UI ·
-  `public/tray.html` — tray quick panel
-- `electron-main.js` / `preload.js` — the Electron shell (frameless window, tray,
-  auto-updater, single-instance)
-- `npx electron .` — run the full app from source (no auto-update in dev)
-- `launchpad.bat` — run just the server in a console + browser tab
-- `python make-icon.py` — regenerate `icon.ico` + `public/icon-64.png`
+Electron · Node (no runtime dependencies beyond the updater) · Cloudflare quick
+tunnels · electron-builder + electron-updater · GitHub Releases as the update feed.
 
-### Publishing an update (the whole point)
-
-```
-node publish.mjs patch     # 1.3.2 -> 1.3.3, build, and release to GitHub
-node publish.mjs minor     # 1.3.x -> 1.4.0
-node publish.mjs patch "Fixed the thing" "Added the other thing"   # explicit changelog
-```
-
-It builds the installer, bakes a **changelog** into `latest.yml` (the update
-feed) and the GitHub release, uploads everything via the `gh` CLI, and tags it.
-Every installed copy shows that changelog in its “What’s new” popup and updates
-within a few hours, or immediately on next launch.
-
-**The changelog** is what your brother reads in the popup. If you don’t pass
-notes, it’s built automatically from your git commit messages since the last
-release — so commit with a short, human message, or pass notes as shown above.
-
-- Repo / releases: <https://github.com/flodisterhoft-ops/launchpad>
-- Requires `gh auth login` (already done on this machine).
-- Startup errors on any machine are logged to
-  `%APPDATA%\launchpad\launchpad-error.log`.
+<div align="center"><sub>Built for quickly previewing and sharing side projects. 🚀</sub></div>

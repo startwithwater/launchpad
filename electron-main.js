@@ -47,6 +47,7 @@ if (!gotLock) {
   process.env.LAUNCHPAD_DEFAULT_PROJECTS_DIR = defProjects;
 
   const srv = require('./server.js');
+  srv.appVersion = app.getVersion();
 
   let mainWin = null;
   let popup = null;
@@ -168,6 +169,14 @@ if (!gotLock) {
     if (cmd === 'quit') quitApp();
     if (cmd === 'showMain') showMain();
     if (cmd === 'openExternal' && typeof arg === 'string' && /^https?:\/\//.test(arg)) shell.openExternal(arg);
+    if (cmd === 'checkUpdates') {
+      if (!app.isPackaged) { srv.updateInfo = { status: 'dev' }; return; }
+      srv.updateInfo = { status: 'checking' };
+      autoUpdater.checkForUpdates().catch(e2 => {
+        crashLog('checkUpdates: ' + (e2 && e2.message));
+        srv.updateInfo = { status: 'check-failed' };
+      });
+    }
     if (cmd === 'downloadUpdate') {
       try { autoUpdater.downloadUpdate(); } catch (e2) { crashLog('downloadUpdate: ' + (e2 && e2.message)); }
     }
@@ -206,6 +215,10 @@ if (!gotLock) {
     autoUpdater.on('update-available', info => {
       notes = parseNotes(info.releaseNotes);
       srv.updateInfo = { status: 'available', version: info.version, notes, pct: 0 };
+    });
+    autoUpdater.on('update-not-available', () => {
+      // only meaningful right after a manual check; the popup flow never sets this
+      if (srv.updateInfo && srv.updateInfo.status === 'checking') srv.updateInfo = { status: 'none' };
     });
     autoUpdater.on('download-progress', p => {
       srv.updateInfo = { status: 'downloading', version: srv.updateInfo && srv.updateInfo.version, notes, pct: Math.round(p.percent || 0) };

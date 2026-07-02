@@ -55,6 +55,9 @@ if (IS_SEA) {
 
 const CLOUDFLARED_URL = 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe';
 
+let APP_VERSION = 'dev';
+try { APP_VERSION = require('./package.json').version; } catch (e) {}
+
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.htm': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
@@ -633,6 +636,8 @@ const ui = http.createServer((req, res) => {
     return json(res, 200, {
       projectsDir: PROJECTS_DIR,
       lanIp,
+      version: module.exports.appVersion || APP_VERSION,
+      repoUrl: 'https://github.com/flodisterhoft-ops/launchpad',
       cf: cfState,
       update: module.exports.updateInfo || null,
       projects: list.map(projectJson),
@@ -796,7 +801,7 @@ function onReady(port) {
 if (require.main === module || IS_SEA) start();
 
 module.exports = {
-  start, stopAll, setProjectsDir, onQuit: null, updateInfo: null,
+  start, stopAll, setProjectsDir, onQuit: null, updateInfo: null, appVersion: null,
   get port() { return boundPort; },
   get projectsDir() { return PROJECTS_DIR; },
 };
