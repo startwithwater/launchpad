@@ -219,11 +219,19 @@ function scanProjects() {
 
 // ------------------------------------------------------- static serving ----
 
+// Is filePath contained within root? A plain string-prefix check is unsafe: it
+// lets "/root/../root-secret" through whenever the sibling folder's name starts
+// with the root's name. path.relative gives an answer that survives that case.
+function isInsideRoot(root, filePath) {
+  const rel = path.relative(path.normalize(root), path.normalize(filePath));
+  return rel === '' || (rel !== '..' && !rel.startsWith('..' + path.sep) && !path.isAbsolute(rel));
+}
+
 function serveStaticFile(root, urlPath, res) {
   let rel;
   try { rel = decodeURIComponent(urlPath.split('?')[0]); } catch (e) { rel = urlPath.split('?')[0]; }
   let filePath = path.normalize(path.join(root, rel));
-  if (!filePath.startsWith(path.normalize(root))) { res.writeHead(403); res.end('Forbidden'); return; }
+  if (!isInsideRoot(root, filePath)) { res.writeHead(403); res.end('Forbidden'); return; }
 
   let stat = null;
   try { stat = fs.statSync(filePath); } catch (e) {}
@@ -407,15 +415,14 @@ function stopServer(p) {
     killTree(p.server.pid);
   }
   if (!p.server.child) p.server.status = 'stopped';
+  p.server.lanReachable = false;
   p.actualPort = null;
 }
 
 // --------------------------------------------------- cloudflared install ---
 
-let cloudflaredPath = [
-  path.join(LAUNCHPAD_DIR, 'cloudflared.exe'),
-  path.join(PROJECTS_DIR, 'Viktor Hekalow Website', 'tools', 'share-site', 'cloudflared.exe'),
-].find(p => fs.existsSync(p)) || null;
+let cloudflaredPath = fs.existsSync(path.join(LAUNCHPAD_DIR, 'cloudflared.exe'))
+  ? path.join(LAUNCHPAD_DIR, 'cloudflared.exe') : null;
 
 const cfState = { status: cloudflaredPath ? 'ready' : 'missing', pct: 0 };
 const pendingTunnels = new Set();
@@ -564,6 +571,25 @@ function detectLanIp() {
 detectLanIp();
 setInterval(detectLanIp, 60000).unref();
 
+// Whether each running server is actually reachable over the LAN. We can't
+// assume it: static/wrangler servers bind 0.0.0.0 (reachable), but an npm dev
+// server picks its own bind address and many (Vite, Next) listen on localhost
+// only unless told otherwise. Probing the LAN IP from here is the honest test —
+// it connects only if the server really bound to the network — and lets the UI
+// show a Wi-Fi link exactly when one will work, for every project mode.
+function checkLanReach() {
+  if (!lanIp) return;
+  for (const p of projects.values()) {
+    if (p.server.status !== 'running') { p.server.lanReachable = false; continue; }
+    const sock = net.connect({ host: lanIp, port: p.actualPort || p.port, timeout: 1200 });
+    const done = ok => { p.server.lanReachable = ok; sock.destroy(); };
+    sock.once('connect', () => done(true));
+    sock.once('timeout', () => done(false));
+    sock.once('error', () => done(false));
+  }
+}
+setInterval(checkLanReach, 4000).unref();
+
 // ------------------------------------------------------------------ API ----
 
 function projectJson(p) {
@@ -574,7 +600,7 @@ function projectJson(p) {
     port: p.actualPort || p.port,
     needsNode: (p.mode === 'wrangler' || p.mode === 'npm' || p.mode === 'custom') && !HAS_NODE_TOOLS,
     localUrl: p.server.status === 'running' ? `http://localhost:${p.actualPort || p.port}/` : null,
-    lanUrl: p.server.status === 'running' && lanIp && p.mode !== 'npm' ? `http://${lanIp}:${p.actualPort || p.port}/` : null,
+    lanUrl: p.server.status === 'running' && lanIp && p.server.lanReachable ? `http://${lanIp}:${p.actualPort || p.port}/` : null,
     server: { status: p.server.status, error: p.server.error || null, startedAt: p.server.startedAt || null },
     tunnel: { status: p.tunnel.status, url: p.tunnel.url, startedAt: p.tunnel.startedAt || null },
   };
@@ -615,6 +641,17 @@ let lastPoll = Date.now();
 const ui = http.createServer((req, res) => {
   const u = new URL(req.url, 'http://x');
   const route = `${req.method} ${u.pathname}`;
+
+  // The control API is for the local dashboard only. Reject requests whose
+  // Host/Origin point anywhere else, so a malicious website can't fire
+  // cross-site requests at localhost to start/stop projects or open tunnels.
+  const reqHost = String(req.headers.host || '').replace(/:\d+$/, '');
+  const origin = req.headers.origin;
+  if ((reqHost !== 'localhost' && reqHost !== '127.0.0.1')
+    || (origin && !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin))) {
+    res.writeHead(403, { 'content-type': 'text/plain' });
+    return res.end('Forbidden');
+  }
 
   if (route === 'GET /' || route === 'GET /index.html') {
     if (EMBEDDED_HTML) {
@@ -802,6 +839,8 @@ if (require.main === module || IS_SEA) start();
 
 module.exports = {
   start, stopAll, setProjectsDir, onQuit: null, updateInfo: null, appVersion: null,
+  // exported for the test suite
+  detectProject, isInsideRoot,
   get port() { return boundPort; },
   get projectsDir() { return PROJECTS_DIR; },
 };

@@ -60,6 +60,10 @@ turns all of it into one list of buttons.
 
 ## Install
 
+> **Windows only.** Launchpad ships as a Windows installer and relies on
+> Windows tools under the hood (`taskkill`, PowerShell, the Windows build of
+> `cloudflared`), so it does not run on macOS or Linux today.
+
 1. Download the latest **`Launchpad-Setup.exe`** from
    [Releases](https://github.com/flodisterhoft-ops/launchpad/releases/latest).
 2. Run it — it installs just for you (no admin) and adds a **Launchpad** shortcut.
@@ -103,6 +107,7 @@ plain-Node control server (`server.js`) that also serves the dashboard.
 npm install
 npx electron .          # run the app from source
 node server.js          # or just the server, opened in a browser tab
+npm test                # run the unit tests (Node's built-in runner)
 ```
 
 | File | Role |
@@ -131,5 +136,9 @@ installed copy shows that changelog and updates on its own.
 
 Electron · Node (no runtime dependencies beyond the updater) · Cloudflare quick
 tunnels · electron-builder + electron-updater · GitHub Releases as the update feed.
+
+## License
+
+[MIT](LICENSE) © Florian Disterhoft
 
 <div align="center"><sub>Built for quickly previewing and sharing side projects. 🚀</sub></div>
