@@ -54,7 +54,8 @@
       {
         "provider": "github",
         "owner": "flodisterhoft-ops",
-        "repo": "launchpad"
+        "repo": "launchpad",
+        "releaseType": "release"
       }
     ]
   }
