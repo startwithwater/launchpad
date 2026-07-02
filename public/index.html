@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Launchpad</title>
+<link rel="icon" href="/icon-64.png">
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --card: #ffffff;
+    --line: #e5e8ee;
+    --line-2: #d3d9e2;
+    --text: #1c2129;
+    --dim: #5b6572;
+    --faint: #99a2ae;
+    --blue: #2563eb;
+    --blue-bg: #eef3fe;
+    --green: #158f54;
+    --green-bg: #e8f6ef;
+    --amber: #a8700a;
+    --amber-bg: #fdf4e0;
+    --red: #d24343;
+    --red-bg: #fdeeee;
+    --mono: 'Cascadia Code', Consolas, ui-monospace, monospace;
+    --sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+    --r: 6px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: var(--sans);
+    background: linear-gradient(180deg, #eef1f5 0%, var(--bg) 220px);
+    color: var(--text);
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: rgba(37, 99, 235, .18); }
+
+  /* scrollbars that belong to the design */
+  ::-webkit-scrollbar { width: 12px; height: 12px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: #cbd3de; border: 3.5px solid transparent;
+    border-radius: 8px; background-clip: padding-box; min-height: 40px;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: #aab6c4; background-clip: padding-box; }
+  ::-webkit-scrollbar-corner { background: transparent; }
+
+  .wrap { max-width: 860px; margin: 0 auto; padding: 22px 16px 120px; }
+
+  /* ------- custom titlebar (Electron shell only) ------- */
+  .titlebar {
+    display: none; position: fixed; top: 0; left: 0; right: 0; height: 38px; z-index: 50;
+    align-items: center; gap: 8px; padding-left: 13px;
+    background: rgba(238, 241, 245, .94); backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+    -webkit-app-region: drag; user-select: none;
+  }
+  body.shell .titlebar { display: flex; }
+  body.shell { padding-top: 38px; }
+  .titlebar img { width: 16px; height: 16px; border-radius: 4px; }
+  .titlebar .t { font-size: 12px; font-weight: 600; color: var(--dim); letter-spacing: .02em; }
+  .titlebar .tspace { flex: 1; height: 100%; }
+  .tb-btn {
+    -webkit-app-region: no-drag; width: 44px; height: 37px; border: none; background: transparent;
+    color: #6b7480; cursor: pointer; display: grid; place-items: center; padding: 0;
+  }
+  .tb-btn:hover { background: rgba(20, 30, 50, .08); color: var(--text); }
+  .tb-btn.close:hover { background: #e81123; color: #fff; }
+  .tb-btn svg { width: 13px; height: 13px; display: block; }
+
+  /* ------- header ------- */
+  header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .mark { width: 30px; height: 30px; border-radius: 8px; background: var(--blue); flex: none;
+    display: grid; place-items: center; box-shadow: 0 2px 6px rgba(37,99,235,.25); }
+  .mark svg { display: block; }
+  .brand { min-width: 0; }
+  .brand h1 { font-size: 16px; font-weight: 650; letter-spacing: -.01em; line-height: 1.2; }
+  .brand .path { font-size: 10.5px; color: var(--faint); font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .counts { margin-left: auto; font-size: 11.5px; color: var(--dim); text-align: right; flex: none; }
+  .counts b { color: var(--green); font-weight: 600; }
+
+  /* ------- buttons: slim ------- */
+  .btn {
+    font-family: var(--sans); font-size: 12.5px; font-weight: 550;
+    padding: 4.5px 12px; border-radius: var(--r);
+    border: 1px solid var(--line-2); background: var(--card); color: var(--dim);
+    cursor: pointer; white-space: nowrap; line-height: 1.5;
+    transition: border-color .12s, color .12s, background .12s, box-shadow .12s;
+  }
+  .btn:hover { color: var(--text); border-color: #b9c2cf; box-shadow: 0 1px 3px rgba(20,30,50,.06); }
+  .btn:active { transform: translateY(1px); }
+  .btn:disabled { opacity: .45; cursor: default; transform: none; box-shadow: none; }
+  .btn.green { color: var(--green); border-color: #bfe3d0; }
+  .btn.green:hover { background: var(--green-bg); border-color: var(--green); }
+  .btn.blue { color: var(--blue); border-color: #c3d4f7; }
+  .btn.blue:hover { background: var(--blue-bg); border-color: var(--blue); }
+  .btn.red { color: var(--red); border-color: #eecbcb; }
+  .btn.red:hover { background: var(--red-bg); border-color: var(--red); }
+  .btn.ghost { border-color: transparent; background: transparent; padding: 4.5px 8px; }
+  .btn.ghost:hover { border-color: var(--line-2); background: var(--card); }
+
+  /* ------- banner ------- */
+  .banner {
+    display: none; align-items: center; gap: 10px;
+    background: var(--blue-bg); border: 1px solid #c3d4f7; border-radius: var(--r);
+    color: #1e4fc0; font-size: 12.5px; padding: 9px 14px; margin-bottom: 14px;
+  }
+  .banner.show { display: flex; }
+  .banner .bar { flex: 1; height: 4px; background: #d5e2fb; border-radius: 2px; overflow: hidden; min-width: 60px; }
+  .banner .bar i { display: block; height: 100%; background: var(--blue); width: 0; transition: width .4s; }
+  .banner.update { background: var(--green-bg); border-color: #bfe3d0; color: #12683f; }
+
+  /* ------- project list card ------- */
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(20, 30, 50, .04), 0 8px 24px -18px rgba(20, 30, 50, .18);
+    overflow: hidden;
+  }
+  .allbar {
+    display: flex; align-items: center; gap: 9px;
+    padding: 9px 12px 9px 14px; border-bottom: 1px solid var(--line);
+    background: #fafbfd; font-size: 12px; color: var(--dim);
+  }
+  .allbar label { cursor: pointer; user-select: none; }
+  .allbar .spacer { flex: 1; }
+  .row {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 12px 16px 12px 14px;
+    border-bottom: 1px solid var(--line);
+    animation: reveal .3s ease both;
+  }
+  .row:last-child { border-bottom: none; }
+  .row:hover { background: #fafbfd; }
+  @keyframes reveal { from { opacity: 0; transform: translateY(4px); } }
+
+  .row input[type=checkbox], .allbar input[type=checkbox] {
+    appearance: none; width: 15px; height: 15px; flex: none;
+    border: 1.5px solid var(--line-2); border-radius: 4px; background: var(--card);
+    cursor: pointer; position: relative; transition: border-color .12s, background .12s;
+  }
+  .row input[type=checkbox]:hover, .allbar input[type=checkbox]:hover { border-color: var(--blue); }
+  .row input[type=checkbox]:checked, .allbar input[type=checkbox]:checked,
+  .allbar input[type=checkbox]:indeterminate { background: var(--blue); border-color: var(--blue); }
+  .row input[type=checkbox]:checked::after, .allbar input[type=checkbox]:checked::after {
+    content: ''; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px;
+    border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg);
+  }
+  .allbar input[type=checkbox]:indeterminate::after {
+    content: ''; position: absolute; left: 3px; top: 5.5px; width: 7px; height: 2px; background: #fff;
+  }
+
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: #cfd6df; transition: background .2s; }
+  .dot.running { background: var(--green); box-shadow: 0 0 0 3px var(--green-bg); }
+  .dot.starting { background: #e2a63d; animation: pulse 1s ease-in-out infinite; }
+  .dot.error, .dot.stale { background: var(--red); box-shadow: 0 0 0 3px var(--red-bg); }
+  @keyframes pulse { 50% { opacity: .35; } }
+
+  .name { font-weight: 600; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sub { font-size: 11px; color: var(--faint); flex: none; }
+  .row-main { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex: 1 1 auto; }
+  .row-actions { display: flex; gap: 7px; align-items: center; margin-left: auto; flex: none; }
+
+  .status { font-size: 11.5px; color: var(--faint); }
+  .status.on { color: var(--green); font-weight: 550; }
+  .status.busy { color: var(--amber); }
+
+  /* ------- link chips ------- */
+  .urls { flex-basis: 100%; display: flex; gap: 8px; flex-wrap: wrap; padding: 8px 0 2px 36px; }
+  .url {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-family: var(--mono); font-size: 11.5px;
+    border: 1px solid var(--line); border-radius: var(--r); background: #fafbfd;
+    padding: 4px 5px 4px 10px; max-width: 100%;
+  }
+  .url a { color: var(--text); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .url a:hover { text-decoration: underline; }
+  .url .tag { font-family: var(--sans); font-size: 9.5px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; }
+  .url.local { border-color: #cde8da; background: var(--green-bg); }
+  .url.local .tag { color: var(--green); }
+  .url.public { border-color: #c3d4f7; background: var(--blue-bg); }
+  .url.public .tag { color: var(--blue); }
+  .url.dead { border-color: #eecbcb; background: var(--red-bg); color: var(--red); font-family: var(--sans); font-size: 12px; padding-right: 10px; }
+  .copy { border: none; background: transparent; color: var(--faint); cursor: pointer; font-size: 12px; padding: 2px 6px; border-radius: 4px; line-height: 1; }
+  .copy:hover { color: var(--text); background: rgba(20,30,50,.07); }
+
+  .err { flex-basis: 100%; padding: 6px 0 2px 36px; color: var(--red); font-size: 12px; }
+  .note { flex-basis: 100%; padding: 4px 0 2px 36px; color: var(--faint); font-size: 11.5px; }
+
+  .logbox {
+    flex-basis: 100%; margin: 8px 0 4px 36px;
+    background: #f3f5f8; border: 1px solid var(--line); border-radius: var(--r);
+    padding: 10px 12px; max-height: 240px; overflow: auto;
+    font-family: var(--mono); font-size: 10.5px; line-height: 1.65; color: var(--dim);
+    white-space: pre-wrap; word-break: break-all;
+  }
+
+  /* ------- bulk bar ------- */
+  .bulk {
+    position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 100px);
+    display: flex; gap: 8px; align-items: center;
+    background: var(--card); border: 1px solid var(--line-2); border-radius: 10px;
+    padding: 10px 14px; box-shadow: 0 10px 34px -6px rgba(20, 30, 50, .25);
+    transition: transform .22s ease; z-index: 20; white-space: nowrap;
+  }
+  .bulk.show { transform: translate(-50%, 0); }
+  .bulk .n { font-size: 12px; color: var(--dim); margin-right: 4px; }
+  .bulk .n b { color: var(--text); }
+
+  /* ------- toast ------- */
+  .toast {
+    position: fixed; left: 20px; bottom: 20px; z-index: 30;
+    background: #22272f; color: #f0f3f6; border-radius: var(--r);
+    padding: 9px 15px; font-size: 12.5px;
+    box-shadow: 0 8px 26px -6px rgba(10, 15, 25, .5);
+    opacity: 0; transform: translateY(8px); transition: opacity .18s, transform .18s;
+    pointer-events: none; max-width: 70vw;
+  }
+  .toast.show { opacity: 1; transform: none; }
+  .toast.bad { background: #7e2c2c; }
+
+  .empty { padding: 52px 12px; text-align: center; color: var(--faint); font-size: 13px; }
+
+  .foot { margin-top: 18px; color: var(--faint); font-size: 11.5px; line-height: 1.8; }
+  .foot b { color: var(--dim); font-weight: 600; }
+
+  /* compact widget window */
+  @media (max-width: 600px) {
+    .wrap { padding: 14px 10px 110px; }
+    header { margin-bottom: 10px; gap: 10px; }
+    .mark { width: 26px; height: 26px; border-radius: 7px; }
+    .brand h1 { font-size: 14.5px; }
+    .row { padding: 9px 12px 9px 11px; gap: 9px; }
+    .row-main { gap: 8px; }
+    .status { display: none; }
+    .sub { display: none; }
+    .btn { font-size: 11.5px; padding: 3.5px 9px; }
+    .row-actions { gap: 5px; }
+    .urls, .err, .note, .logbox { padding-left: 0; margin-left: 0; }
+    .urls { padding-top: 6px; }
+    .foot { font-size: 10.5px; line-height: 1.7; margin-top: 12px; }
+    .bulk { bottom: 14px; padding: 8px 10px; gap: 6px; max-width: calc(100vw - 20px); }
+  }
+</style>
+</head>
+<body>
+<div class="titlebar">
+  <img src="/icon-64.png" alt="">
+  <span class="t">Launchpad</span>
+  <span class="tspace"></span>
+  <button class="tb-btn" id="tb-min" title="Minimize">
+    <svg viewBox="0 0 12 12"><line x1="1" y1="6" x2="11" y2="6" stroke="currentColor" stroke-width="1.2"/></svg>
+  </button>
+  <button class="tb-btn close" id="tb-close" title="Close to the tray — everything keeps running">
+    <svg viewBox="0 0 12 12"><path d="M1.5 1.5 10.5 10.5M10.5 1.5 1.5 10.5" stroke="currentColor" stroke-width="1.2"/></svg>
+  </button>
+</div>
+<div class="wrap">
+  <header>
+    <div class="mark">
+      <svg width="16" height="16" viewBox="0 0 32 32"><circle cx="16" cy="16" r="10" fill="none" stroke="white" stroke-width="3.4"/><circle cx="16" cy="16" r="4" fill="white"/></svg>
+    </div>
+    <div class="brand">
+      <h1>Launchpad</h1>
+      <div class="path" id="path"></div>
+    </div>
+    <span class="counts" id="counts"></span>
+  </header>
+
+  <div class="banner" id="cfbanner">
+    <span id="cfmsg">Setting up sharing (one-time download)…</span>
+    <span class="bar"><i id="cfbar"></i></span>
+  </div>
+
+  <div class="banner update" id="upbanner">
+    <span id="upmsg"></span>
+    <span class="tspace" style="flex:1"></span>
+    <button class="btn green" id="uprestart" style="display:none">Restart to update</button>
+  </div>
+
+  <div class="card">
+    <div class="allbar">
+      <input type="checkbox" id="selall" title="Select all projects">
+      <label for="selall">All</label>
+      <span class="spacer"></span>
+      <button class="btn red" id="stopall">Stop all</button>
+      <button class="btn ghost" id="quit" title="Stop everything and close Launchpad">Quit</button>
+    </div>
+    <div id="list"><div class="empty">connecting…</div></div>
+  </div>
+
+  <div class="foot">
+    <b>Start</b> — runs the project on this computer (plus phones on the same Wi-Fi) &nbsp;·&nbsp;
+    <b>Share</b> — adds a temporary public link you can send to anyone (a fresh link each time)<br>
+    Closing this window keeps everything running in the tray. Quit from the tray icon or the Quit button.
+  </div>
+</div>
+
+<div class="bulk" id="bulk">
+  <span class="n"><b id="bulkn">0</b> selected</span>
+  <button class="btn green" data-bulk="server">Start</button>
+  <button class="btn blue" data-bulk="tunnel">Share</button>
+  <button class="btn red" data-bulk="stop">Stop</button>
+  <button class="btn ghost" data-bulk="clear">Clear</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const list = $('#list');
+const selected = new Set();
+const openLogs = new Set();
+let state = null;
+let firstRender = true;
+
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+
+function toast(msg, bad) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.toggle('bad', !!bad);
+  t.classList.add('show');
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+async function api(path, body) {
+  try {
+    const res = await fetch(path, body
+      ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }
+      : undefined);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || res.status);
+    return data;
+  } catch (e) {
+    toast(String(e.message || e), true);
+    throw e;
+  }
+}
+
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(
+    () => toast('Copied: ' + text),
+    () => toast('Could not copy', true));
+}
+
+function overallDot(p) {
+  if (p.server.status === 'error' || p.tunnel.status === 'stale') return p.tunnel.status === 'stale' ? 'stale' : 'error';
+  if (p.server.status === 'starting' || p.tunnel.status === 'starting') return 'starting';
+  if (p.server.status === 'running') return 'running';
+  return 'idle';
+}
+
+function statusWord(p) {
+  if (p.server.status === 'error') return ['Problem — see log', ''];
+  if (p.tunnel.status === 'stale') return ['Public link lost', ''];
+  if (p.server.status === 'starting') return ['Starting…', 'busy'];
+  if (p.tunnel.status === 'starting') return ['Getting your link…', 'busy'];
+  if (p.server.status === 'running') return [p.tunnel.status === 'running' ? 'Running · shared' : 'Running', 'on'];
+  return ['', ''];
+}
+
+function rowHTML(p, i) {
+  const running = p.server.status === 'running';
+  const busy = p.server.status === 'starting' || p.tunnel.status === 'starting';
+  const tunnelUp = p.tunnel.status === 'running';
+  const stale = p.tunnel.status === 'stale';
+  const n = esc(p.name);
+  const dis = p.needsNode ? 'disabled title="This project needs Node.js installed on this computer"' : '';
+
+  let actions = '';
+  if (running || busy) {
+    if (!tunnelUp && p.tunnel.status !== 'starting' && !stale)
+      actions += `<button class="btn blue" data-act="tunnel" data-p="${n}">Share</button>`;
+    if (tunnelUp)
+      actions += `<button class="btn blue" data-act="renew" data-p="${n}" title="Swap the public link for a fresh one">New link</button>`;
+    actions += `<button class="btn red" data-act="stop" data-p="${n}">Stop</button>`;
+  } else {
+    actions =
+      `<button class="btn green" data-act="server" data-p="${n}" ${dis}>Start</button>` +
+      `<button class="btn blue" data-act="tunnel" data-p="${n}" ${dis}>Share</button>`;
+  }
+  actions += `<button class="btn ghost" data-act="log" data-p="${n}" title="Show technical output">…</button>`;
+
+  let urls = '';
+  if (running) {
+    urls += `<span class="url local"><span class="tag">This PC</span><a href="${esc(p.localUrl)}" target="_blank">${esc(p.localUrl)}</a><button class="copy" data-copy="${esc(p.localUrl)}" title="Copy">⧉</button></span>`;
+    if (p.lanUrl)
+      urls += `<span class="url local"><span class="tag">Wi-Fi</span><a href="${esc(p.lanUrl)}" target="_blank">${esc(p.lanUrl)}</a><button class="copy" data-copy="${esc(p.lanUrl)}" title="Copy">⧉</button></span>`;
+  }
+  if (tunnelUp)
+    urls += `<span class="url public"><span class="tag">Public</span><a href="${esc(p.tunnel.url)}" target="_blank">${esc(p.tunnel.url)}</a><button class="copy" data-copy="${esc(p.tunnel.url)}" title="Copy">⧉</button></span>`;
+  if (p.tunnel.status === 'starting')
+    urls += `<span class="url public"><span class="tag">Public</span><a>getting your link…</a></span>`;
+  if (stale)
+    urls += `<span class="url dead">public link lost</span><button class="btn blue" data-act="renew" data-p="${n}">Get a new link</button> <button class="btn ghost" data-act="stop" data-p="${n}">Stop</button>`;
+  if (p.server.status === 'starting')
+    urls += `<span class="url local"><span class="tag">This PC</span><a>starting…</a></span>`;
+
+  const err = p.server.status === 'error' && p.server.error ? `<div class="err">${esc(p.server.error)}</div>` : '';
+  const note = p.needsNode && !running && !busy ? `<div class="note">Needs Node.js on this computer (nodejs.org) — the Start/Share buttons are disabled.</div>` : '';
+  const log = openLogs.has(p.name) ? `<div class="logbox" data-log="${n}">loading…</div>` : '';
+  const [word, wcls] = statusWord(p);
+  const kind = p.mode !== 'static' ? `<span class="sub">${esc(p.mode)}</span>` : '';
+
+  return `<div class="row" style="animation-delay:${firstRender ? Math.min(i * 24, 380) : 0}ms">
+    <input type="checkbox" data-sel="${n}" ${selected.has(p.name) ? 'checked' : ''}>
+    <div class="row-main">
+      <span class="dot ${overallDot(p)}" style="align-self:center"></span>
+      <span class="name">${n}</span>
+      ${kind}
+      <span class="status ${wcls}">${word}</span>
+    </div>
+    <div class="row-actions">${actions}</div>
+    ${urls ? `<div class="urls">${urls}</div>` : ''}${err}${note}${log}
+  </div>`;
+}
+
+let lastSig = null;
+function render() {
+  if (!state) return;
+  $('#path').textContent = state.projectsDir;
+  const ps = state.projects;
+  const up = ps.filter(p => p.server.status === 'running').length;
+  const tn = ps.filter(p => p.tunnel.status === 'running').length;
+  $('#counts').textContent = `${ps.length} projects · ${up} running · ${tn} shared`;
+
+  const cf = state.cf || {};
+  const banner = $('#cfbanner');
+  if (cf.status === 'downloading') {
+    banner.classList.add('show');
+    $('#cfmsg').textContent = 'Setting up sharing (one-time download)…';
+    $('#cfbar').style.width = (cf.pct || 2) + '%';
+  } else if (cf.status === 'error') {
+    banner.classList.add('show');
+    $('#cfmsg').textContent = 'Could not set up sharing — check the internet connection and try Share again.';
+    $('#cfbar').style.width = '0%';
+  } else banner.classList.remove('show');
+
+  const up = state.update;
+  const ub = $('#upbanner');
+  if (up && up.status === 'ready') {
+    ub.classList.add('show');
+    $('#upmsg').textContent = `A new version (${up.version}) is ready.`;
+    $('#uprestart').style.display = '';
+  } else if (up && up.status === 'downloading') {
+    ub.classList.add('show');
+    $('#upmsg').textContent = `Downloading update…${up.pct ? ' ' + up.pct + '%' : ''}`;
+    $('#uprestart').style.display = 'none';
+  } else ub.classList.remove('show');
+
+  // Rebuild the list only when something it shows actually changed — a
+  // constant repaint flickers and can swallow a click mid-press.
+  const sig = JSON.stringify(ps.map(p =>
+    [p.name, p.mode, p.port, p.needsNode, p.server.status, p.server.error, p.tunnel.status, p.tunnel.url, p.localUrl, p.lanUrl]))
+    + '|' + [...openLogs].join(',');
+  if (sig !== lastSig) {
+    lastSig = sig;
+    list.innerHTML = ps.length
+      ? ps.map((p, i) => rowHTML(p, i)).join('')
+      : '<div class="empty">No project folders found next to Launchpad.<br>Put Launchpad in the folder that contains your projects.</div>';
+    firstRender = false;
+  }
+
+  $('#bulk').classList.toggle('show', selected.size > 0);
+  $('#bulkn').textContent = selected.size;
+  syncSelAll();
+  refreshOpenLogs();
+}
+
+function syncSelAll() {
+  if (!state) return;
+  const ps = state.projects;
+  const picked = ps.filter(p => selected.has(p.name)).length;
+  const sa = $('#selall');
+  sa.checked = ps.length > 0 && picked === ps.length;
+  sa.indeterminate = picked > 0 && picked < ps.length;
+}
+
+async function refreshOpenLogs() {
+  for (const name of openLogs) {
+    const box = document.querySelector(`.logbox[data-log="${CSS.escape(name)}"]`);
+    if (!box) continue;
+    try {
+      const d = await fetch('/api/log?name=' + encodeURIComponent(name)).then(r => r.json());
+      const text = ['— server —', ...d.server.slice(-60), '', '— share link —', ...d.tunnel.slice(-30)].join('\n');
+      if (box.textContent !== text) { box.textContent = text; box.scrollTop = box.scrollHeight; }
+    } catch (e) {}
+  }
+}
+
+async function poll() {
+  try {
+    state = await fetch('/api/state').then(r => r.json());
+    render();
+  } catch (e) {
+    list.innerHTML = '<div class="empty">Launchpad is closed — start it again to reconnect.</div>';
+  }
+}
+
+list.addEventListener('click', e => {
+  const copyBtn = e.target.closest('[data-copy]');
+  if (copyBtn) return copyText(copyBtn.dataset.copy);
+  const btn = e.target.closest('[data-act]');
+  if (!btn) return;
+  const name = btn.dataset.p, act = btn.dataset.act;
+  btn.disabled = true;
+  const done = () => setTimeout(poll, 250);
+  if (act === 'server') api('/api/start', { name, server: true }).finally(done);
+  if (act === 'tunnel') api('/api/start', { name, tunnel: true }).finally(done);
+  if (act === 'stop') api('/api/stop', { name, server: true, tunnel: true }).finally(done);
+  if (act === 'renew') { api('/api/renew', { name }).finally(done); toast('Getting a fresh link…'); }
+  if (act === 'log') {
+    openLogs.has(name) ? openLogs.delete(name) : openLogs.add(name);
+    btn.disabled = false;
+    lastSig = null;
+    render();
+  }
+});
+
+list.addEventListener('change', e => {
+  const cb = e.target.closest('[data-sel]');
+  if (!cb) return;
+  cb.checked ? selected.add(cb.dataset.sel) : selected.delete(cb.dataset.sel);
+  $('#bulk').classList.toggle('show', selected.size > 0);
+  $('#bulkn').textContent = selected.size;
+  syncSelAll();
+});
+
+$('#selall').addEventListener('change', e => {
+  selected.clear();
+  if (e.target.checked && state) state.projects.forEach(p => selected.add(p.name));
+  lastSig = null;
+  render();
+});
+
+$('#bulk').addEventListener('click', e => {
+  const btn = e.target.closest('[data-bulk]');
+  if (!btn) return;
+  const names = [...selected];
+  const kind = btn.dataset.bulk;
+  const done = () => setTimeout(poll, 250);
+  if (kind === 'clear') { selected.clear(); lastSig = null; render(); return; }
+  if (!names.length) return;
+  if (kind === 'server') api('/api/start', { names, server: true }).finally(done);
+  if (kind === 'tunnel') api('/api/start', { names, tunnel: true }).finally(done);
+  if (kind === 'stop') api('/api/stop', { names, server: true, tunnel: true }).finally(done);
+});
+
+$('#stopall').addEventListener('click', () => api('/api/stopall').then(() => { toast('Everything stopped'); poll(); }));
+$('#quit').addEventListener('click', async () => {
+  if (!confirm('Stop all projects & links and close Launchpad?')) return;
+  await api('/api/quit').catch(() => {});
+  document.body.innerHTML = '<div class="empty" style="padding-top:40vh">Launchpad closed — you can close this window.</div>';
+});
+
+// Electron shell: show the custom titlebar and wire the window buttons
+if (window.shell && window.shell.isShell) {
+  document.body.classList.add('shell');
+  $('#tb-min').addEventListener('click', () => window.shell.minimize());
+  $('#tb-close').addEventListener('click', () => window.shell.hideToTray());
+  $('#uprestart').addEventListener('click', () => { toast('Updating…'); window.shell.installUpdate(); });
+}
+
+poll();
+setInterval(poll, 2000);
+</script>
+</body>
+</html>

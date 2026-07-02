@@ -1,0 +1,17 @@
+# dependencies & build output
+node_modules/
+dist/
+build/
+
+# runtime binaries (downloaded / built, not source)
+cloudflared.exe
+Launchpad.exe
+Launchpad-Setup*.exe
+
+# generated icons kept in repo (icon.ico, public/icon-64.png) — but not the scratch one
+icon-256.png
+
+# per-user runtime data (project ports/paths, logs) — regenerated at runtime
+config.json
+launchpad-error.log
+*.log

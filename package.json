@@ -1,0 +1,61 @@
+{
+  "name": "launchpad",
+  "version": "1.3.0",
+  "private": true,
+  "description": "Launchpad",
+  "author": "Florian Disterhoft",
+  "main": "electron-main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis",
+    "publish": "electron-builder --win nsis --publish always"
+  },
+  "devDependencies": {
+    "electron": "^39.0.0",
+    "electron-builder": "^26.0.0",
+    "electron-updater": "^6.8.9"
+  },
+  "build": {
+    "appId": "com.disterhoft.launchpad",
+    "productName": "Launchpad",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron-main.js",
+      "preload.js",
+      "server.js",
+      "public/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "icon.ico",
+        "to": "icon.ico"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "icon.ico",
+      "signAndEditExecutable": true
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Launchpad",
+      "artifactName": "Launchpad-Setup-${version}.exe",
+      "deleteAppDataOnUninstall": false
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "flodisterhoft-ops",
+        "repo": "launchpad"
+      }
+    ]
+  }
+}
