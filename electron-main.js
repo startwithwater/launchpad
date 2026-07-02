@@ -168,10 +168,13 @@ if (!gotLock) {
     if (cmd === 'quit') quitApp();
     if (cmd === 'showMain') showMain();
     if (cmd === 'openExternal' && typeof arg === 'string' && /^https?:\/\//.test(arg)) shell.openExternal(arg);
+    if (cmd === 'downloadUpdate') {
+      try { autoUpdater.downloadUpdate(); } catch (e2) { crashLog('downloadUpdate: ' + (e2 && e2.message)); }
+    }
     if (cmd === 'installUpdate') {
       quitting = true; // let the app actually exit so the updater can swap files
       try { srv.stopAll(); } catch (e2) {}
-      try { autoUpdater.quitAndInstall(); } catch (e2) { console.error('quitAndInstall', e2 && e2.message); }
+      try { autoUpdater.quitAndInstall(); } catch (e2) { crashLog('quitAndInstall: ' + (e2 && e2.message)); }
     }
     if (cmd === 'chooseFolder') {
       const picked = dialog.showOpenDialogSync(win || mainWin, {
@@ -183,22 +186,40 @@ if (!gotLock) {
     }
   });
 
+  // Turn release notes (a string from latest.yml, or GitHub's array form) into
+  // clean one-line bullets for the update popup.
+  function parseNotes(raw) {
+    if (!raw) return [];
+    const text = Array.isArray(raw) ? raw.map(n => (n && n.note) || n).join('\n') : String(raw);
+    return text
+      .split(/\r?\n/)
+      .map(l => l.replace(/^\s*[-*•]\s*/, '').replace(/<[^>]+>/g, '').trim())
+      .filter(l => l && !/^#{1,6}\s/.test(l))
+      .slice(0, 12);
+  }
+
   // ---- auto-update (packaged builds only; dev has no feed) ----
   function setupUpdates() {
-    autoUpdater.autoDownload = true;
-    autoUpdater.autoInstallOnAppQuit = true;   // apply on next quit even if ignored
+    autoUpdater.autoDownload = false;          // wait for the user to press Update
+    autoUpdater.autoInstallOnAppQuit = true;   // but still apply on quit as a fallback
+    let notes = [];
     autoUpdater.on('update-available', info => {
-      srv.updateInfo = { status: 'downloading', version: info.version, pct: 0 };
+      notes = parseNotes(info.releaseNotes);
+      srv.updateInfo = { status: 'available', version: info.version, notes, pct: 0 };
     });
     autoUpdater.on('download-progress', p => {
-      const v = srv.updateInfo && srv.updateInfo.version;
-      srv.updateInfo = { status: 'downloading', version: v, pct: Math.round(p.percent || 0) };
+      srv.updateInfo = { status: 'downloading', version: srv.updateInfo && srv.updateInfo.version, notes, pct: Math.round(p.percent || 0) };
     });
     autoUpdater.on('update-downloaded', info => {
-      srv.updateInfo = { status: 'ready', version: info.version };
-      if (tray) tray.setToolTip('Launchpad — update ready (restart to apply)');
+      srv.updateInfo = { status: 'ready', version: info.version, notes, pct: 100 };
+      if (tray) tray.setToolTip('Launchpad — update ready');
     });
-    autoUpdater.on('error', err => console.error('updater:', err && err.message));
+    autoUpdater.on('error', err => {
+      crashLog('updater: ' + (err && err.message));
+      if (srv.updateInfo && srv.updateInfo.status === 'downloading') {
+        srv.updateInfo = { status: 'error', version: srv.updateInfo.version, notes };
+      }
+    });
     const check = () => autoUpdater.checkForUpdates().catch(() => {});
     setTimeout(check, 5000);                    // shortly after launch
     setInterval(check, 3 * 60 * 60 * 1000);     // and every 3 hours

@@ -115,6 +115,53 @@
   .banner .bar i { display: block; height: 100%; background: var(--blue); width: 0; transition: width .4s; }
   .banner.update { background: var(--green-bg); border-color: #bfe3d0; color: #12683f; }
 
+  .btn.solid { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .btn.solid:hover { background: #1e55d0; border-color: #1e55d0; color: #fff; }
+
+  /* ------- update modal ------- */
+  .upscrim {
+    position: fixed; inset: 0; z-index: 60; display: none;
+    align-items: center; justify-content: center; padding: 24px;
+    background: rgba(20, 28, 44, .42); backdrop-filter: blur(3px);
+  }
+  .upscrim.show { display: flex; animation: upfade .18s ease; }
+  @keyframes upfade { from { opacity: 0; } }
+  .upcard {
+    width: 100%; max-width: 380px; background: var(--card);
+    border: 1px solid var(--line); border-radius: 16px; padding: 24px 22px 18px;
+    box-shadow: 0 24px 70px -14px rgba(15, 25, 45, .5); text-align: center;
+    animation: uppop .26s cubic-bezier(.2, .9, .3, 1.3);
+  }
+  @keyframes uppop { from { transform: translateY(14px) scale(.96); opacity: 0; } }
+  .uprocket { width: 56px; height: 56px; margin: 0 auto 12px; display: grid; place-items: center;
+    background: var(--blue-bg); border-radius: 15px; }
+  .uprocket.launch { animation: launch .7s ease; }
+  @keyframes launch { 30% { transform: translateY(3px); } 100% { transform: translateY(-6px); } }
+  .upcard h2 { font-size: 18px; font-weight: 700; letter-spacing: -.01em; }
+  .upsub { font-size: 12.5px; color: var(--faint); margin-top: 3px; }
+  .upnotes {
+    list-style: none; text-align: left; margin: 16px 0 4px; padding: 14px 16px;
+    background: #fafbfd; border: 1px solid var(--line); border-radius: 10px;
+    max-height: 220px; overflow-y: auto;
+  }
+  .upnotes li { font-size: 13px; color: var(--text); padding: 4px 0 4px 20px; position: relative; line-height: 1.45; }
+  .upnotes li::before { content: ''; position: absolute; left: 4px; top: 9px; width: 6px; height: 6px;
+    border-radius: 50%; background: var(--green); }
+  .upnotes li.plain { padding-left: 0; }
+  .upnotes li.plain::before { display: none; }
+
+  .upprog { margin: 18px 2px 6px; display: flex; align-items: center; gap: 10px; }
+  .upbar { flex: 1; height: 8px; background: #e7ebf2; border-radius: 5px; overflow: hidden; }
+  .upbar i { display: block; height: 100%; width: 0; border-radius: 5px;
+    background: linear-gradient(90deg, #2563eb, #0ea5e9); transition: width .25s ease; }
+  .uppct { font-family: var(--mono); font-size: 12px; color: var(--dim); min-width: 38px; text-align: right; }
+
+  .upactions { display: flex; gap: 10px; margin-top: 16px; }
+  .upactions .btn { flex: 1; padding: 8px 12px; font-size: 13px; }
+  .updoing { margin-top: 14px; font-size: 13px; font-weight: 600; color: var(--green); }
+
+  .confetti { position: fixed; inset: 0; z-index: 70; pointer-events: none; }
+
   /* ------- project list card ------- */
   .card {
     background: var(--card); border: 1px solid var(--line); border-radius: 10px;
@@ -279,7 +326,7 @@
   <div class="banner update" id="upbanner">
     <span id="upmsg"></span>
     <span class="tspace" style="flex:1"></span>
-    <button class="btn green" id="uprestart" style="display:none">Restart to update</button>
+    <button class="btn green" id="upreview">See what's new</button>
   </div>
 
   <div class="card">
@@ -309,6 +356,29 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<div class="upscrim" id="upmodal">
+  <div class="upcard">
+    <div class="uprocket" id="uprocket">
+      <svg width="34" height="34" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#eef3fe"/><path d="M16 6c3 2 4.5 5 4.5 8.5L16 19l-4.5-4.5C11.5 11 13 8 16 6z" fill="#2563eb"/><circle cx="16" cy="12.5" r="1.8" fill="#fff"/><path d="M13 18l-2 4 3-1.2M19 18l2 4-3-1.2" fill="#f0b429"/></svg>
+    </div>
+    <h2 id="up-title">Update available</h2>
+    <div id="up-sub" class="upsub"></div>
+    <ul id="up-notes" class="upnotes"></ul>
+
+    <div id="up-progwrap" class="upprog" hidden>
+      <div class="upbar"><i id="up-bar"></i></div>
+      <div class="uppct" id="up-pct">0%</div>
+    </div>
+
+    <div id="up-actions" class="upactions">
+      <button class="btn ghost" id="up-later">Later</button>
+      <button class="btn blue solid" id="up-now">Update now</button>
+    </div>
+    <div id="up-doing" class="updoing" hidden>Updating…</div>
+  </div>
+</div>
+<canvas id="confetti" class="confetti" hidden></canvas>
 
 <script>
 'use strict';
@@ -443,17 +513,7 @@ function render() {
     $('#cfbar').style.width = '0%';
   } else banner.classList.remove('show');
 
-  const up = state.update;
-  const ub = $('#upbanner');
-  if (up && up.status === 'ready') {
-    ub.classList.add('show');
-    $('#upmsg').textContent = `A new version (${up.version}) is ready.`;
-    $('#uprestart').style.display = '';
-  } else if (up && up.status === 'downloading') {
-    ub.classList.add('show');
-    $('#upmsg').textContent = `Downloading update…${up.pct ? ' ' + up.pct + '%' : ''}`;
-    $('#uprestart').style.display = 'none';
-  } else ub.classList.remove('show');
+  syncUpdateUI(state.update);
 
   // Rebuild the list only when something it shows actually changed — a
   // constant repaint flickers and can swallow a click mid-press.
@@ -565,8 +625,160 @@ if (window.shell && window.shell.isShell) {
   document.body.classList.add('shell');
   $('#tb-min').addEventListener('click', () => window.shell.minimize());
   $('#tb-close').addEventListener('click', () => window.shell.hideToTray());
-  $('#uprestart').addEventListener('click', () => { toast('Updating…'); window.shell.installUpdate(); });
   $('#changedir').addEventListener('click', () => window.shell.chooseFolder());
+}
+
+// ---------------- update: changelog popup → progress → confetti ------------
+let umPhase = null;        // null | available | downloading | ready | done
+let umDismissed = null;    // version the user clicked "Later" on
+let umVersion = null;      // version currently shown in the modal
+let umLast = null;         // last non-empty update object seen (for the reopener)
+
+function renderNotes(notes) {
+  const ul = $('#up-notes');
+  if (notes && notes.length) {
+    ul.innerHTML = notes.map(n => `<li>${esc(n)}</li>`).join('');
+  } else {
+    ul.innerHTML = '<li class="plain">Small improvements and fixes.</li>';
+  }
+}
+
+function openModal() { $('#upmodal').classList.add('show'); }
+function closeModal() { $('#upmodal').classList.remove('show'); }
+
+function syncUpdateUI(up) {
+  const ub = $('#upbanner');
+
+  if (!up || !up.status || up.status === 'stopped') { ub.classList.remove('show'); return; }
+  const ver = up.version;
+  umVersion = ver;
+  umLast = up;
+
+  // AVAILABLE — pop the changelog once per version (unless dismissed)
+  if (up.status === 'available') {
+    if (umDismissed === ver) {
+      ub.classList.add('show');
+      $('#upmsg').textContent = `Update available (${ver})`;
+      if (umPhase !== 'available-dismissed') umPhase = 'available-dismissed';
+    } else if (umPhase !== 'available' && umPhase !== 'downloading' && umPhase !== 'ready') {
+      umPhase = 'available';
+      ub.classList.remove('show');
+      $('#up-title').textContent = "What's new";
+      $('#up-sub').textContent = `Version ${ver}`;
+      renderNotes(up.notes);
+      $('#up-progwrap').hidden = true;
+      $('#up-actions').hidden = false;
+      $('#up-doing').hidden = true;
+      $('#uprocket').classList.remove('launch');
+      openModal();
+    }
+    return;
+  }
+
+  // DOWNLOADING — progress bar
+  if (up.status === 'downloading') {
+    ub.classList.remove('show');
+    if (umPhase !== 'downloading') {
+      umPhase = 'downloading';
+      $('#up-title').textContent = 'Updating…';
+      $('#up-sub').textContent = `Version ${ver}`;
+      $('#up-actions').hidden = true;
+      $('#up-doing').hidden = false;
+      $('#up-progwrap').hidden = false;
+      $('#uprocket').classList.add('launch');
+      openModal();
+    }
+    const pct = up.pct || 0;
+    $('#up-bar').style.width = pct + '%';
+    $('#up-pct').textContent = pct + '%';
+    return;
+  }
+
+  // READY — finish the bar, celebrate, then restart into the new version
+  if (up.status === 'ready') {
+    if (umPhase !== 'ready' && umPhase !== 'done') {
+      umPhase = 'ready';
+      $('#up-progwrap').hidden = false;
+      $('#up-bar').style.width = '100%';
+      $('#up-pct').textContent = '100%';
+      $('#up-title').textContent = 'All set!';
+      $('#up-doing').textContent = 'Update complete 🎉';
+      openModal();
+      setTimeout(() => celebrate(), 250);
+      setTimeout(() => { umPhase = 'done'; if (window.shell) window.shell.installUpdate(); }, 3200);
+    }
+    return;
+  }
+
+  // ERROR — let them close and try later
+  if (up.status === 'error') {
+    umPhase = null;
+    $('#up-title').textContent = 'Update failed';
+    $('#up-sub').textContent = 'Please try again later.';
+    $('#up-progwrap').hidden = true;
+    $('#up-doing').hidden = true;
+    $('#up-actions').hidden = false;
+    $('#up-now').textContent = 'Close';
+    openModal();
+  }
+}
+
+$('#up-later').addEventListener('click', () => {
+  umDismissed = umVersion;
+  umPhase = null;
+  closeModal();
+});
+$('#up-now').addEventListener('click', () => {
+  if ($('#up-now').textContent === 'Close') { closeModal(); umPhase = null; return; }
+  umPhase = 'downloading';
+  $('#up-title').textContent = 'Updating…';
+  $('#up-actions').hidden = true;
+  $('#up-doing').hidden = false;
+  $('#up-progwrap').hidden = false;
+  $('#up-bar').style.width = '3%';
+  $('#up-pct').textContent = '0%';
+  $('#uprocket').classList.add('launch');
+  if (window.shell) window.shell.downloadUpdate();
+});
+$('#upreview').addEventListener('click', () => { umDismissed = null; umPhase = null; syncUpdateUI(umLast); });
+
+// full-page confetti burst
+function celebrate() {
+  const canvas = $('#confetti');
+  canvas.hidden = false;
+  const ctx = canvas.getContext('2d');
+  const DPR = Math.min(window.devicePixelRatio || 1, 2);
+  const W = window.innerWidth, H = window.innerHeight;
+  canvas.width = W * DPR; canvas.height = H * DPR;
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+  ctx.scale(DPR, DPR);
+  const colors = ['#2563eb', '#158f54', '#f0b429', '#d24343', '#7c3aed', '#0ea5e9', '#ec4899'];
+  const cx = W / 2, cy = H * 0.4, parts = [];
+  for (let i = 0; i < 170; i++) {
+    const a = Math.PI * 2 * (i / 170) + (i % 3) * 0.2, sp = 5 + (i % 13);
+    parts.push({ x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 7,
+      s: 5 + (i % 7), c: colors[i % colors.length], rot: i, vr: (i % 2 ? 1 : -1) * (0.15 + (i % 5) * 0.06), life: 1 });
+  }
+  let raf, t0 = null;
+  function frame(ts) {
+    if (t0 === null) t0 = ts;
+    const elapsed = (ts - t0) / 1000;
+    ctx.clearRect(0, 0, W, H);
+    let alive = false;
+    for (const p of parts) {
+      p.vy += 0.3; p.vx *= 0.99; p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+      if (elapsed > 1.4) p.life -= 0.02;
+      if (p.life > 0 && p.y < H + 30) alive = true;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, p.life);
+      ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+      ctx.fillStyle = p.c; ctx.fillRect(-p.s / 2, -p.s / 2, p.s, p.s * 0.62);
+      ctx.restore();
+    }
+    if (alive && elapsed < 4) { raf = requestAnimationFrame(frame); }
+    else { cancelAnimationFrame(raf); canvas.hidden = true; }
+  }
+  raf = requestAnimationFrame(frame);
 }
 
 poll();
