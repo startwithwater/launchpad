@@ -7,13 +7,15 @@
   "main": "electron-main.js",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win nsis",
-    "publish": "electron-builder --win nsis --publish always"
+    "dist": "electron-builder --win nsis --publish never",
+    "release": "node publish.mjs"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   },
   "devDependencies": {
     "electron": "^39.0.0",
-    "electron-builder": "^26.0.0",
-    "electron-updater": "^6.8.9"
+    "electron-builder": "^26.0.0"
   },
   "build": {
     "appId": "com.disterhoft.launchpad",
@@ -54,8 +56,7 @@
       {
         "provider": "github",
         "owner": "flodisterhoft-ops",
-        "repo": "launchpad",
-        "releaseType": "release"
+        "repo": "launchpad"
       }
     ]
   }

@@ -77,7 +77,10 @@
   .mark svg { display: block; }
   .brand { min-width: 0; }
   .brand h1 { font-size: 16px; font-weight: 650; letter-spacing: -.01em; line-height: 1.2; }
-  .brand .path { font-size: 10.5px; color: var(--faint); font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .brand .path { font-size: 10.5px; color: var(--faint); font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 6px; }
+  .linkbtn { border: none; background: none; color: var(--blue); font-size: 10.5px; cursor: pointer; padding: 0; text-decoration: underline; font-family: var(--sans); flex: none; }
+  .linkbtn:hover { color: #1e4fc0; }
+  body:not(.shell) .linkbtn { display: none; }
   .counts { margin-left: auto; font-size: 11.5px; color: var(--dim); text-align: right; flex: none; }
   .counts b { color: var(--green); font-weight: 600; }
 
@@ -263,7 +266,7 @@
     </div>
     <div class="brand">
       <h1>Launchpad</h1>
-      <div class="path" id="path"></div>
+      <div class="path"><span id="path"></span> <button class="linkbtn" id="changedir">change</button></div>
     </div>
     <span class="counts" id="counts"></span>
   </header>
@@ -461,7 +464,7 @@ function render() {
     lastSig = sig;
     list.innerHTML = ps.length
       ? ps.map((p, i) => rowHTML(p, i)).join('')
-      : '<div class="empty">No project folders found next to Launchpad.<br>Put Launchpad in the folder that contains your projects.</div>';
+      : '<div class="empty">No project folders here yet.<br>Click <b>change</b> at the top to pick the folder where your projects live.</div>';
     firstRender = false;
   }
 
@@ -563,6 +566,7 @@ if (window.shell && window.shell.isShell) {
   $('#tb-min').addEventListener('click', () => window.shell.minimize());
   $('#tb-close').addEventListener('click', () => window.shell.hideToTray());
   $('#uprestart').addEventListener('click', () => { toast('Updating…'); window.shell.installUpdate(); });
+  $('#changedir').addEventListener('click', () => window.shell.chooseFolder());
 }
 
 poll();

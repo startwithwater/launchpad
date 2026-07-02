@@ -9,4 +9,5 @@ contextBridge.exposeInMainWorld('shell', {
   showMain: () => ipcRenderer.send('shell', 'showMain'),
   openExternal: url => ipcRenderer.send('shell', 'openExternal', url),
   installUpdate: () => ipcRenderer.send('shell', 'installUpdate'),
+  chooseFolder: () => ipcRenderer.send('shell', 'chooseFolder'),
 });

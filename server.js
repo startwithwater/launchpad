@@ -93,10 +93,24 @@ const config = Object.assign({
   ports: {},
 }, loadConfig());
 
-// dev checkout sits inside the projects folder; a shared exe sits wherever
-// the user dropped it — scan that folder itself unless config says otherwise
-const PROJECTS_DIR = path.resolve(LAUNCHPAD_DIR,
-  config.projectsDir || (IS_SEA || IS_ELECTRON ? '.' : '..'));
+// Which folder to scan for projects. Priority: an explicit user choice saved
+// in config, else the default the launcher passes in, else a sensible guess.
+function resolveProjectsDir() {
+  if (config.projectsDir) return path.resolve(config.projectsDir);
+  if (process.env.LAUNCHPAD_DEFAULT_PROJECTS_DIR) return path.resolve(process.env.LAUNCHPAD_DEFAULT_PROJECTS_DIR);
+  return path.resolve(LAUNCHPAD_DIR, IS_SEA || IS_ELECTRON ? '.' : '..');
+}
+let PROJECTS_DIR = resolveProjectsDir();
+
+// Point the launcher at a different projects folder (from the in-app picker).
+function setProjectsDir(dir) {
+  stopAll();
+  config.projectsDir = path.resolve(dir);
+  saveConfig();
+  PROJECTS_DIR = config.projectsDir;
+  projects.clear();
+  scanProjects();
+}
 
 // wrangler/npm projects shell out to the machine's own Node install
 const HAS_NODE_TOOLS = (() => {
@@ -781,7 +795,11 @@ function onReady(port) {
 // the shell requires this module and calls start() itself
 if (require.main === module || IS_SEA) start();
 
-module.exports = { start, stopAll, onQuit: null, updateInfo: null, get port() { return boundPort; } };
+module.exports = {
+  start, stopAll, setProjectsDir, onQuit: null, updateInfo: null,
+  get port() { return boundPort; },
+  get projectsDir() { return PROJECTS_DIR; },
+};
 
 // ---------------------------------------------------------------- cleanup --
 

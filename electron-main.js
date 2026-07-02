@@ -6,16 +6,45 @@
 const { app, BrowserWindow, Tray, Menu, ipcMain, screen, shell, dialog, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
+
+// Log any startup failure to a file so a blank/dead window on someone else's
+// machine is diagnosable (there's no console in a packaged app). Registered
+// before the heavy requires so even a bad require gets recorded.
+function crashLog(msg) {
+  try {
+    const dir = app.getPath('userData');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.appendFileSync(path.join(dir, 'launchpad-error.log'), new Date().toISOString() + ' ' + msg + '\n');
+  } catch (e) {}
+}
+process.on('uncaughtException', err => crashLog('uncaught: ' + (err && err.stack || err)));
+process.on('unhandledRejection', err => crashLog('unhandledRejection: ' + (err && err.stack || err)));
+
 const { autoUpdater } = require('electron-updater');
 
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
 } else {
-  // config.json / cloudflared.exe / project scan live next to the exe the
-  // user double-clicked (portable builds extract to temp — don't use that)
+  // DATA dir (config.json, cloudflared.exe, logs):
+  //   portable build  -> next to the exe (dropped among the projects)
+  //   installed build -> Electron userData (writable, survives updates)
+  //   dev             -> the source folder
   process.env.LAUNCHPAD_BASE_DIR = process.env.PORTABLE_EXECUTABLE_DIR
-    || (app.isPackaged ? path.dirname(process.execPath) : __dirname);
+    || (app.isPackaged ? app.getPath('userData') : __dirname);
+
+  // Default PROJECTS folder when the user hasn't chosen one yet:
+  //   portable -> the exe's own folder (it's dropped among the projects)
+  //   installed -> the user's Documents (they pick their real folder in-app)
+  //   dev -> the parent of the source folder
+  let defProjects;
+  if (process.env.PORTABLE_EXECUTABLE_DIR) defProjects = process.env.PORTABLE_EXECUTABLE_DIR;
+  else if (app.isPackaged) {
+    const docs = path.join(os.homedir(), 'Documents');
+    defProjects = fs.existsSync(docs) ? docs : os.homedir();
+  } else defProjects = path.resolve(__dirname, '..');
+  process.env.LAUNCHPAD_DEFAULT_PROJECTS_DIR = defProjects;
 
   const srv = require('./server.js');
 
@@ -143,6 +172,14 @@ if (!gotLock) {
       quitting = true; // let the app actually exit so the updater can swap files
       try { srv.stopAll(); } catch (e2) {}
       try { autoUpdater.quitAndInstall(); } catch (e2) { console.error('quitAndInstall', e2 && e2.message); }
+    }
+    if (cmd === 'chooseFolder') {
+      const picked = dialog.showOpenDialogSync(win || mainWin, {
+        title: 'Choose your projects folder',
+        properties: ['openDirectory'],
+        defaultPath: srv.projectsDir,
+      });
+      if (picked && picked[0]) { try { srv.setProjectsDir(picked[0]); } catch (e2) {} }
     }
   });
 
