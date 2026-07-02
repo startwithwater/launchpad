@@ -33,12 +33,13 @@ New folders appear automatically. The projects folder is remembered.
 The install location is baked in, so updates are automatic — no links to resend:
 
 1. On launch (and every few hours) it checks GitHub for a newer version.
-2. If there is one, it downloads in the background and shows a green
-   **“A new version is ready — Restart to update”** bar.
-3. Click it, or just quit and reopen — the update applies on the next start.
+2. If there is one, a **“What’s new”** popup appears listing the changes.
+3. Click **Update now** → a progress bar fills, then a little **confetti
+   celebration** plays and the app restarts on the new version.
+4. Or click **Later** — it tucks into a slim bar you can reopen any time.
 
-To publish a new version (see **Development** below), you run one command; every
-installed copy picks it up on its own.
+To publish a new version (see **Development** below) you run one command; every
+installed copy shows the changelog and updates on its own.
 
 ## Sending it to someone
 
@@ -97,14 +98,19 @@ Source lives in `_Launchpad/`. The app is Electron; the work happens in `server.
 ### Publishing an update (the whole point)
 
 ```
-node publish.mjs patch     # 1.3.1 -> 1.3.2, build, and release to GitHub
+node publish.mjs patch     # 1.3.2 -> 1.3.3, build, and release to GitHub
 node publish.mjs minor     # 1.3.x -> 1.4.0
-node publish.mjs           # release the current package.json version as-is
+node publish.mjs patch "Fixed the thing" "Added the other thing"   # explicit changelog
 ```
 
-It builds the installer, uploads it plus `latest.yml` (the update feed) to a
-GitHub Release via the `gh` CLI, and creates the tag. Every installed copy
-updates within a few hours, or immediately on next launch.
+It builds the installer, bakes a **changelog** into `latest.yml` (the update
+feed) and the GitHub release, uploads everything via the `gh` CLI, and tags it.
+Every installed copy shows that changelog in its “What’s new” popup and updates
+within a few hours, or immediately on next launch.
+
+**The changelog** is what your brother reads in the popup. If you don’t pass
+notes, it’s built automatically from your git commit messages since the last
+release — so commit with a short, human message, or pass notes as shown above.
 
 - Repo / releases: <https://github.com/flodisterhoft-ops/launchpad>
 - Requires `gh auth login` (already done on this machine).
