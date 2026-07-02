@@ -137,6 +137,13 @@ installed copy shows that changelog and updates on its own.
 Electron · Node (no runtime dependencies beyond the updater) · Cloudflare quick
 tunnels · electron-builder + electron-updater · GitHub Releases as the update feed.
 
+## Support
+
+Launchpad is free and open source. If it saves you time, you can support it:
+
+- ☕ [**Buy me a coffee**](https://buymeacoffee.com/flodisterhoft)
+- 💛 [**GitHub Sponsors**](https://github.com/sponsors/flodisterhoft-ops)
+
 ## License
 
 [MIT](LICENSE) © Florian Disterhoft
