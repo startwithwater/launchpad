@@ -142,6 +142,11 @@ installed copy shows that changelog and updates on its own.
 Electron · Node (no runtime dependencies beyond the updater) · Cloudflare Quick
 Tunnels · electron-builder + electron-updater · GitHub Releases as the update feed.
 
+## Roadmap
+
+Curious what's next — like permanent, bookmarkable links for projects you work on
+often? See **[ROADMAP.md](ROADMAP.md)**.
+
 ## Support
 
 Launchpad is free and open source. If it saves you time, you can support it:
