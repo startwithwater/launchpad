@@ -51,7 +51,7 @@ teammates. Launchpad turns that workflow into one list of buttons.
 
 <table>
 <tr>
-<td width="50%"><img src="assets/update.png" alt="Update popup with changelog"><br><sub><b>Auto-update</b> — a “What’s new” popup, a progress bar, then a little celebration.</sub></td>
+<td width="50%"><img src="assets/update.png" alt="Update popup with changelog"><br><sub><b>Auto-update</b> — a “What’s new” popup, a progress bar, then an automatic install and restart.</sub></td>
 <td width="50%"><img src="assets/about.png" alt="About panel"><br><sub><b>About</b> — version, one-click “Check for updates”, and your projects folder.</sub></td>
 </tr>
 </table>
@@ -98,7 +98,7 @@ Launchpad keeps itself current — you never re-download it:
 1. It checks for a new version on launch and every few hours (or on demand from
    **About → Check for updates**).
 2. A **What’s new** popup lists the changes.
-3. **Update now** → progress bar → 🎉 → it restarts on the new version.
+3. **Update now** downloads, installs, and restarts Launchpad on the new version.
 
 ---
 
@@ -118,7 +118,7 @@ npm test                # run the unit tests (Node's built-in runner)
 | File | Role |
 |---|---|
 | `server.js` | Control server — detects projects, starts local servers/tunnels, serves the UI & API |
-| `public/index.html` | The dashboard (single file) |
+| `public/index.html` / `public/app.js` | The dashboard markup/styles and renderer logic |
 | `public/tray.html` | The tray quick panel |
 | `electron-main.js` / `preload.js` | Electron shell — window, tray, auto-updater |
 | `publish.mjs` | Build + release to GitHub with a changelog |

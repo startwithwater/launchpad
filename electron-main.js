@@ -54,6 +54,7 @@ if (!gotLock) {
   let tray = null;
   let port = null;
   let quitting = false;
+  let installAfterDownload = false;
 
   const iconPath = () => [
     path.join(process.resourcesPath || '', 'icon.ico'),
@@ -68,6 +69,18 @@ if (!gotLock) {
     app.quit();
   }
   srv.onQuit = quitApp;
+
+  function installDownloadedUpdate() {
+    if (quitting) return;
+    quitting = true; // let the app actually exit so the updater can swap files
+    try { srv.stopAll(); } catch (e) {}
+    try {
+      autoUpdater.quitAndInstall(false, true);
+    } catch (e2) {
+      crashLog('quitAndInstall: ' + (e2 && e2.message));
+      quitting = false;
+    }
+  }
 
   function createMain() {
     mainWin = new BrowserWindow({
@@ -178,12 +191,22 @@ if (!gotLock) {
       });
     }
     if (cmd === 'downloadUpdate') {
-      try { autoUpdater.downloadUpdate(); } catch (e2) { crashLog('downloadUpdate: ' + (e2 && e2.message)); }
+      installAfterDownload = true;
+      try {
+        const pending = autoUpdater.downloadUpdate();
+        if (pending && typeof pending.catch === 'function') {
+          pending.catch(e2 => {
+            installAfterDownload = false;
+            crashLog('downloadUpdate: ' + (e2 && e2.message));
+          });
+        }
+      } catch (e2) {
+        installAfterDownload = false;
+        crashLog('downloadUpdate: ' + (e2 && e2.message));
+      }
     }
     if (cmd === 'installUpdate') {
-      quitting = true; // let the app actually exit so the updater can swap files
-      try { srv.stopAll(); } catch (e2) {}
-      try { autoUpdater.quitAndInstall(); } catch (e2) { crashLog('quitAndInstall: ' + (e2 && e2.message)); }
+      installDownloadedUpdate();
     }
     if (cmd === 'chooseFolder') {
       const picked = dialog.showOpenDialogSync(win || mainWin, {
@@ -213,6 +236,7 @@ if (!gotLock) {
     autoUpdater.autoInstallOnAppQuit = true;   // but still apply on quit as a fallback
     let notes = [];
     autoUpdater.on('update-available', info => {
+      installAfterDownload = false;
       notes = parseNotes(info.releaseNotes);
       srv.updateInfo = { status: 'available', version: info.version, notes, pct: 0 };
     });
@@ -224,8 +248,9 @@ if (!gotLock) {
       srv.updateInfo = { status: 'downloading', version: srv.updateInfo && srv.updateInfo.version, notes, pct: Math.round(p.percent || 0) };
     });
     autoUpdater.on('update-downloaded', info => {
-      srv.updateInfo = { status: 'ready', version: info.version, notes, pct: 100 };
-      if (tray) tray.setToolTip('Launchpad — update ready');
+      srv.updateInfo = { status: installAfterDownload ? 'installing' : 'ready', version: info.version, notes, pct: 100 };
+      if (tray) tray.setToolTip(installAfterDownload ? 'Launchpad — installing update' : 'Launchpad — update ready');
+      if (installAfterDownload) setTimeout(installDownloadedUpdate, 350);
     });
     autoUpdater.on('error', err => {
       crashLog('updater: ' + (err && err.message));

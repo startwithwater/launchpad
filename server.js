@@ -112,7 +112,7 @@ function setProjectsDir(dir) {
   saveConfig();
   PROJECTS_DIR = config.projectsDir;
   projects.clear();
-  scanProjects();
+  scanProjects(true);
 }
 
 // wrangler/npm projects shell out to the machine's own Node install
@@ -196,6 +196,8 @@ function detectProject(name, dir) {
 // stay unique and top-level projects keep their old one-segment names.
 const SCAN_MAX_DEPTH = 4;
 const SCAN_MAX_DIRS = 4000;
+const SCAN_INTERVAL_MS = 5000;
+let lastScanAt = 0;
 
 function findProjects(rootDir) {
   const found = [];
@@ -223,7 +225,11 @@ function findProjects(rootDir) {
   return found;
 }
 
-function scanProjects() {
+function scanProjects(force = false) {
+  const now = Date.now();
+  if (!force && now - lastScanAt < SCAN_INTERVAL_MS) return;
+  lastScanAt = now;
+
   const seen = new Set();
   for (const { name, dir, det } of findProjects(PROJECTS_DIR)) {
     seen.add(name);
@@ -692,6 +698,7 @@ const ui = http.createServer((req, res) => {
   }
 
   if (route === 'GET /tray') return sendAsset(res, 'tray.html', 'text/html; charset=utf-8');
+  if (route === 'GET /app.js') return sendAsset(res, 'app.js', 'text/javascript; charset=utf-8');
   if (route === 'GET /icon-64.png') return sendAsset(res, 'icon-64.png', 'image/png');
 
   if (route === 'GET /api/ping') return json(res, 200, { launchpad: true });
@@ -841,7 +848,7 @@ function start() {
 }
 
 function onReady(port) {
-  scanProjects();
+  scanProjects(true);
   console.log('');
   console.log('  Launchpad running:  http://localhost:' + port + '/');
   console.log('  Projects folder:    ' + PROJECTS_DIR);

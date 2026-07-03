@@ -25,6 +25,13 @@ let bump = null;
 if (['major', 'minor', 'patch'].includes(argv[0])) bump = argv.shift();
 const explicitNotes = argv;   // anything remaining = manual changelog lines
 
+const startingStatus = cap('git status --short').trim();
+if (startingStatus) {
+  console.error('Refusing to publish with uncommitted changes. Commit or discard these first:\n');
+  console.error(startingStatus);
+  process.exit(1);
+}
+
 // changelog from commit subjects since the previous tag (best effort)
 function autoNotes() {
   let prev = '';
@@ -65,9 +72,10 @@ let yml = fs.readFileSync(feed, 'utf8').replace(/\r?\nreleaseNotes:.*$/s, '').tr
 yml += `\nreleaseNotes: ${JSON.stringify(notesMd)}\n`;
 fs.writeFileSync(feed, yml);
 
-// commit + push whatever changed so the tag reflects the built code
+// Commit only the version bump. Build artifacts stay ignored and are uploaded
+// as release assets below.
 console.log('3/5  Committing & pushing…');
-quiet('git add -A');
+quiet('git add package.json package-lock.json');
 quiet(`git commit -m "Release ${tag}"`);
 quiet('git push');
 
