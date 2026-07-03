@@ -62,6 +62,57 @@ test('detectProject: wrangler.toml is a wrangler project using its build output 
   assert.equal(det.detail, 'dist');
 });
 
+test('detectProject: a folder with nothing runnable or servable is not a project', () => {
+  const dir = tmpProject({ 'notes.txt': 'just some files', 'photo.jpg': '' });
+  assert.equal(srv.detectProject('stuff', dir), null);
+});
+
+test('detectProject: package.json without dev/start and no index.html is not a project', () => {
+  const dir = tmpProject({ 'package.json': JSON.stringify({ scripts: { build: 'x' } }) });
+  assert.equal(srv.detectProject('lib', dir), null);
+});
+
+test('findProjects: finds projects nested below the top level, named by relative path', () => {
+  const root = tmpProject({
+    'top-site/index.html': '<h1>top</h1>',
+    'clients/acme/homepage/index.html': '<h1>acme</h1>',
+    'clients/notes.txt': 'not a project',
+    'docs/readme.txt': 'nothing here',
+  });
+  const found = srv.findProjects(root);
+  const names = found.map(f => f.name).sort();
+  assert.deepEqual(names, ['clients/acme/homepage', 'top-site']);
+  const acme = found.find(f => f.name === 'clients/acme/homepage');
+  assert.equal(acme.dir, path.join(root, 'clients', 'acme', 'homepage'));
+  assert.equal(acme.det.mode, 'static');
+});
+
+test('findProjects: a folder that is itself a project is not descended into', () => {
+  const root = tmpProject({
+    'app/package.json': JSON.stringify({ scripts: { dev: 'vite' } }),
+    'app/examples/demo/index.html': '<h1>demo</h1>',
+  });
+  const names = srv.findProjects(root).map(f => f.name);
+  assert.deepEqual(names, ['app']);
+});
+
+test('findProjects: pointing at a single project lists just that project', () => {
+  const root = tmpProject({ 'index.html': '<h1>hi</h1>' });
+  const found = srv.findProjects(root);
+  assert.equal(found.length, 1);
+  assert.equal(found[0].dir, root);
+  assert.equal(found[0].det.mode, 'static');
+});
+
+test('findProjects: node_modules and hidden folders are skipped', () => {
+  const root = tmpProject({
+    'node_modules/pkg/index.html': 'x',
+    '.git/index.html': 'x',
+    'real/index.html': 'x',
+  });
+  assert.deepEqual(srv.findProjects(root).map(f => f.name), ['real']);
+});
+
 test('isInsideRoot: an ordinary nested file is inside the root', () => {
   const root = path.normalize('/srv/site');
   assert.equal(srv.isInsideRoot(root, path.join(root, 'a', 'b.txt')), true);

@@ -34,7 +34,7 @@ turns all of it into one list of buttons.
 
 |  |  |
 |---|---|
-| 🗂️ **Every project, one list** | Point it at a folder; it lists each project and remembers your choices. New folders appear automatically. |
+| 🗂️ **Every project, one list** | Point it at a folder; it finds every previewable project inside — top-level or nested — and remembers your choices. New projects appear automatically. |
 | 📱 **Phone-ready** | Local + Wi‑Fi links out of the box; public HTTPS links for anything that needs a real device. |
 | 🔗 **One-click sharing** | Public links via Cloudflare quick tunnels — one click, fresh link, no account. |
 | 🎯 **Smart detection** | Static sites, `npm run dev`, and `wrangler pages dev` all just work. |
