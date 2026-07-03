@@ -723,7 +723,7 @@ const ui = http.createServer((req, res) => {
       if (act === '/api/stopall') { stopAll(); return json(res, 200, { ok: true }); }
       if (act === '/api/quit') {
         json(res, 200, { ok: true });
-        stopAll();
+        try { stopAll(); } catch (e) {}
         setTimeout(() => {
           if (module.exports.onQuit) module.exports.onQuit();
           else process.exit(0);

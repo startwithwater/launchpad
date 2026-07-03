@@ -657,6 +657,12 @@ $('#bulk').addEventListener('click', e => {
 $('#stopall').addEventListener('click', () => api('/api/stopall').then(() => { toast('Everything stopped'); poll(); }));
 $('#quit').addEventListener('click', async () => {
   if (!confirm('Stop all projects & links and close Launchpad?')) return;
+  // In the desktop app, ask the shell to quit directly — it stops every
+  // project and closes this window itself. Going through the HTTP API and
+  // waiting for the server to come back down here would just leave the
+  // window sitting open with nothing left to close it (no browser chrome —
+  // the shell's own titlebar controls disappear with the rest of the page).
+  if (window.shell && window.shell.isShell) { window.shell.quit(); return; }
   await api('/api/quit').catch(() => {});
   document.body.innerHTML = '<div class="empty" style="padding-top:40vh">Launchpad closed — you can close this window.</div>';
 });
