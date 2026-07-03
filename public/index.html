@@ -349,15 +349,15 @@
       <span class="spacer"></span>
       <button class="btn ghost" id="about" title="About Launchpad">About</button>
       <button class="btn red" id="stopall">Stop all</button>
-      <button class="btn ghost" id="quit" title="Stop everything and close Launchpad">Quit</button>
+      <button class="btn ghost" id="quit" title="Stop all local servers and public links, then close Launchpad">Quit</button>
     </div>
     <div id="list"><div class="empty">connecting…</div></div>
   </div>
 
   <div class="foot">
-    <b>Start</b> — runs the project on this computer (plus phones on the same Wi-Fi) &nbsp;·&nbsp;
-    <b>Share</b> — adds a temporary public link you can send to anyone (a fresh link each time)<br>
-    Closing this window keeps everything running in the tray. Quit from the tray icon or the Quit button.
+    <b>Start</b> — starts the project locally (with a local-network link when reachable) &nbsp;·&nbsp;
+    <b>Share</b> — creates a temporary public link to the running local project<br>
+    Closing this window keeps servers and links running in the tray. Quit from the tray icon or the Quit button.
   </div>
 </div>
 
@@ -502,7 +502,7 @@ function rowHTML(p, i) {
   if (running) {
     urls += `<span class="url local"><span class="tag">This PC</span><a href="${esc(p.localUrl)}" target="_blank">${esc(p.localUrl)}</a><button class="copy" data-copy="${esc(p.localUrl)}" title="Copy">⧉</button></span>`;
     if (p.lanUrl)
-      urls += `<span class="url local"><span class="tag">Wi-Fi</span><a href="${esc(p.lanUrl)}" target="_blank">${esc(p.lanUrl)}</a><button class="copy" data-copy="${esc(p.lanUrl)}" title="Copy">⧉</button></span>`;
+      urls += `<span class="url local"><span class="tag">Network</span><a href="${esc(p.lanUrl)}" target="_blank">${esc(p.lanUrl)}</a><button class="copy" data-copy="${esc(p.lanUrl)}" title="Copy">⧉</button></span>`;
   }
   if (tunnelUp)
     urls += `<span class="url public"><span class="tag">Public</span><a href="${esc(p.tunnel.url)}" target="_blank">${esc(p.tunnel.url)}</a><button class="copy" data-copy="${esc(p.tunnel.url)}" title="Copy">⧉</button></span>`;
@@ -565,7 +565,7 @@ function render() {
     lastSig = sig;
     list.innerHTML = ps.length
       ? ps.map((p, i) => rowHTML(p, i)).join('')
-      : '<div class="empty">No project folders here yet.<br>Click <b>change</b> at the top to pick the folder where your projects live.</div>';
+      : '<div class="empty">No projects found yet.<br>Click <b>change</b> at the top to pick a project or workspace folder.</div>';
     firstRender = false;
   }
 
@@ -656,7 +656,7 @@ $('#bulk').addEventListener('click', e => {
 
 $('#stopall').addEventListener('click', () => api('/api/stopall').then(() => { toast('Everything stopped'); poll(); }));
 $('#quit').addEventListener('click', async () => {
-  if (!confirm('Stop all projects & links and close Launchpad?')) return;
+  if (!confirm('Stop all local servers and public links, then close Launchpad?')) return;
   await api('/api/quit').catch(() => {});
   document.body.innerHTML = '<div class="empty" style="padding-top:40vh">Launchpad closed — you can close this window.</div>';
 });
