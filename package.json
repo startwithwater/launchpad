@@ -2,7 +2,7 @@
   "name": "launchpad",
   "version": "1.3.5",
   "private": true,
-  "description": "Launchpad",
+  "description": "Start, test, and share local web projects",
   "author": "Florian Disterhoft",
   "main": "electron-main.js",
   "scripts": {

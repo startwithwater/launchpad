@@ -4,12 +4,14 @@
 
 # Launchpad
 
-**Run any project on your computer with one click — or share it with a live link in seconds.**
+**Start local web apps and sites with one click — then share them with a temporary public link.**
 
-A tiny desktop app that finds every project in a folder and lets you preview it
-locally, on your phone over Wi‑Fi, or on the public internet with a temporary
-link you can send to anyone. It lives in your system tray and keeps itself up to
-date.
+A tiny Windows desktop app for developers working on local web projects. Point
+it at a project or workspace folder and it finds apps and sites it knows how to
+serve, starts the right local server, and gives you links for this computer,
+devices on the same local network, or anyone on the internet through a
+temporary Cloudflare Quick Tunnel. It lives in your system tray and keeps
+itself up to date.
 
 <img src="assets/dashboard.png" width="720" alt="Launchpad dashboard">
 
@@ -19,26 +21,28 @@ date.
 
 ## Why
 
-Spinning up a local server or a tunnel for every little project gets old fast —
-different commands, different ports, remembering which is running. Launchpad
-turns all of it into one list of buttons.
+Local development gets messy fast: static folders, npm dev servers, Wrangler
+projects, changing ports, phone testing, and temporary links for clients or
+teammates. Launchpad turns that workflow into one list of buttons.
 
-- **▶ Start** — runs the project on your computer, with a `localhost` link and a
-  Wi‑Fi link your phone can open on the same network.
-- **⇗ Share** — creates a public `https://…trycloudflare.com` link you can text
-  to anyone. Great for showing a client, or testing camera/GPS on a real phone.
-- Handles plain HTML sites, `npm` dev servers, and Cloudflare Pages/Wrangler
-  projects — it detects which and does the right thing.
+- **▶ Start** — starts the project locally and gives you a `localhost` link,
+  plus a local-network link when other devices can reach it.
+- **⇗ Share** — creates a temporary public `https://…trycloudflare.com` link to
+  the running local project. Great for showing a client or teammate, or testing
+  camera/GPS on a real phone.
+- Handles plain HTML/CSS/JS folders, `npm run dev` / `npm start` projects, and
+  Cloudflare Pages/Wrangler projects — it detects the right way to serve each
+  one.
 
 ## Features
 
 |  |  |
 |---|---|
-| 🗂️ **Every project, one list** | Point it at a folder; it finds every previewable project inside — top-level or nested — and remembers your choices. New projects appear automatically. |
-| 📱 **Phone-ready** | Local + Wi‑Fi links out of the box; public HTTPS links for anything that needs a real device. |
-| 🔗 **One-click sharing** | Public links via Cloudflare quick tunnels — one click, fresh link, no account. |
-| 🎯 **Smart detection** | Static sites, `npm run dev`, and `wrangler pages dev` all just work. |
-| 🖥️ **Lives in the tray** | Close the window and it keeps running; a tray panel gives you quick controls. |
+| 🗂️ **Web projects in one list** | Point it at your projects folder; Launchpad finds every project inside — top-level or nested — and remembers your choices. New projects appear automatically. |
+| 📱 **Device-ready testing** | `localhost` and local-network links for nearby devices; public HTTPS links when browser APIs need a secure real-device URL. |
+| 🔗 **One-click sharing** | Public links via Cloudflare Quick Tunnels — one click, fresh link, no Cloudflare account required. |
+| 🎯 **Smart detection** | Static sites, `npm run dev` / `npm start`, and `wrangler pages dev` all get the right local server. |
+| 🖥️ **Lives in the tray** | Close the window and local servers keep running; a tray panel gives you quick controls. |
 | 🚀 **Auto-updates** | Checks for new versions, shows a changelog, updates itself. |
 
 ## Screenshots
@@ -54,7 +58,7 @@ turns all of it into one list of buttons.
 
 <img src="assets/tray.png" width="300" alt="Tray quick panel">
 
-<sub><b>Tray panel</b> — see what’s running and open, copy a link, or stop it without opening the window.</sub>
+<sub><b>Tray panel</b> — see what’s running, open or copy links, or stop a project without reopening the window.</sub>
 
 </div>
 
@@ -72,20 +76,20 @@ turns all of it into one list of buttons.
 
 > First run shows a Windows SmartScreen notice (the app isn’t code-signed):
 > **More info → Run anyway**. The first time you **Start** a project, allow the
-> firewall prompt so phones on your Wi‑Fi can reach it.
+> firewall prompt so devices on your local network can reach the local server.
 
-Plain HTML/CSS/JS projects and sharing work out of the box. Projects that use
+Plain HTML/CSS/JS sites and sharing work out of the box. Projects that use
 `npm` or `wrangler` need [Node.js](https://nodejs.org) installed — Launchpad
 tells you when that’s the case.
 
 ## Using it
 
-- **Start / Share** per project, or tick several (or **All**) and act on them at once.
+- **Start / Share** one project, or tick several (or **All**) and act on them at once.
 - **New link** swaps a public link for a fresh one.
 - **…** shows the raw server output if something misbehaves.
-- Closing the window keeps everything running in the tray. **Single-click** the
+- Closing the window keeps local servers and public links running in the tray. **Single-click** the
   tray icon for the quick panel, **double-click** to reopen the window.
-- **Quit** (in-app or the tray menu) stops everything.
+- **Quit** (in-app or the tray menu) stops all local servers and public links.
 
 ## Auto-update
 
@@ -100,8 +104,9 @@ Launchpad keeps itself current — you never re-download it:
 
 ## For developers
 
-The app is [Electron](https://www.electronjs.org/); the logic lives in a small
-plain-Node control server (`server.js`) that also serves the dashboard.
+The app is [Electron](https://www.electronjs.org/); project detection, local
+servers, sharing tunnels, and the dashboard API live in a small plain-Node
+control server (`server.js`).
 
 ```bash
 npm install
@@ -112,7 +117,7 @@ npm test                # run the unit tests (Node's built-in runner)
 
 | File | Role |
 |---|---|
-| `server.js` | Control server — scans projects, runs servers/tunnels, serves the UI & API |
+| `server.js` | Control server — detects projects, starts local servers/tunnels, serves the UI & API |
 | `public/index.html` | The dashboard (single file) |
 | `public/tray.html` | The tray quick panel |
 | `electron-main.js` / `preload.js` | Electron shell — window, tray, auto-updater |
@@ -134,8 +139,8 @@ installed copy shows that changelog and updates on its own.
 
 ## Tech
 
-Electron · Node (no runtime dependencies beyond the updater) · Cloudflare quick
-tunnels · electron-builder + electron-updater · GitHub Releases as the update feed.
+Electron · Node (no runtime dependencies beyond the updater) · Cloudflare Quick
+Tunnels · electron-builder + electron-updater · GitHub Releases as the update feed.
 
 ## Support
 
@@ -148,4 +153,4 @@ Launchpad is free and open source. If it saves you time, you can support it:
 
 [MIT](LICENSE) © Florian Disterhoft
 
-<div align="center"><sub>Built for quickly previewing and sharing side projects. 🚀</sub></div>
+<div align="center"><sub>Built for developers who need to start, test, and share local apps and sites quickly. 🚀</sub></div>
