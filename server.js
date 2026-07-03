@@ -175,28 +175,58 @@ function detectProject(name, dir) {
     }
   }
   if (!mode) {
-    mode = 'static';
-    if (!has('index.html')) {
+    if (has('index.html')) {
+      mode = 'static';
+    } else {
       for (const sub of ['public', 'dist', 'build', 'site', 'www', 'out', 'app']) {
-        if (fs.existsSync(path.join(dir, sub, 'index.html'))) { docroot = path.join(dir, sub); detail = sub; break; }
+        if (fs.existsSync(path.join(dir, sub, 'index.html'))) { mode = 'static'; docroot = path.join(dir, sub); detail = sub; break; }
       }
     }
   }
+  // nothing runnable or servable here — this folder is not a project
+  if (!mode) return null;
   return { mode, detail, docroot };
+}
+
+// Walk the projects folder looking for things that can actually be previewed:
+// wrangler/npm apps and static sites, at any depth (up to SCAN_MAX_DEPTH). A
+// folder that detects as a project is listed and not descended into further;
+// anything else is just a container and we keep looking inside it. Nested
+// projects are named by their relative path ("clients/acme-site") so names
+// stay unique and top-level projects keep their old one-segment names.
+const SCAN_MAX_DEPTH = 4;
+const SCAN_MAX_DIRS = 4000;
+
+function findProjects(rootDir) {
+  const found = [];
+  // pointing the picker directly at a single project should still work
+  const rootDet = detectProject(path.basename(rootDir), rootDir);
+  if (rootDet) return [{ name: path.basename(rootDir), dir: rootDir, det: rootDet }];
+  let visited = 0;
+  (function walk(dir, rel, depth) {
+    if (depth > SCAN_MAX_DEPTH) return;
+    let entries = [];
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch (e) {}
+    for (const ent of entries) {
+      if (!ent.isDirectory()) continue;
+      const base = ent.name;
+      if (base.startsWith('.') || base.startsWith('_') || base === 'node_modules') continue;
+      const name = rel ? rel + '/' + base : base;
+      if (config.exclude.includes(base) || config.exclude.includes(name)) continue;
+      if (++visited > SCAN_MAX_DIRS) return;
+      const sub = path.join(dir, base);
+      const det = detectProject(name, sub);
+      if (det) found.push({ name, dir: sub, det });
+      else walk(sub, name, depth + 1);
+    }
+  })(rootDir, '', 1);
+  return found;
 }
 
 function scanProjects() {
   const seen = new Set();
-  let entries = [];
-  try { entries = fs.readdirSync(PROJECTS_DIR, { withFileTypes: true }); } catch (e) {}
-  for (const ent of entries) {
-    if (!ent.isDirectory()) continue;
-    const name = ent.name;
-    if (name.startsWith('.') || name.startsWith('_') || name === 'node_modules') continue;
-    if (config.exclude.includes(name)) continue;
+  for (const { name, dir, det } of findProjects(PROJECTS_DIR)) {
     seen.add(name);
-    const dir = path.join(PROJECTS_DIR, name);
-    const det = detectProject(name, dir);
     let p = projects.get(name);
     if (!p) {
       p = {
@@ -693,7 +723,7 @@ const ui = http.createServer((req, res) => {
       if (act === '/api/stopall') { stopAll(); return json(res, 200, { ok: true }); }
       if (act === '/api/quit') {
         json(res, 200, { ok: true });
-        stopAll();
+        try { stopAll(); } catch (e) {}
         setTimeout(() => {
           if (module.exports.onQuit) module.exports.onQuit();
           else process.exit(0);
@@ -840,7 +870,7 @@ if (require.main === module || IS_SEA) start();
 module.exports = {
   start, stopAll, setProjectsDir, onQuit: null, updateInfo: null, appVersion: null,
   // exported for the test suite
-  detectProject, isInsideRoot,
+  detectProject, findProjects, isInsideRoot,
   get port() { return boundPort; },
   get projectsDir() { return PROJECTS_DIR; },
 };
