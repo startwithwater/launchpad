@@ -7,7 +7,7 @@
 **Start local web apps and sites with one click — then share them with a temporary public link.**
 
 A tiny Windows desktop app for developers working on local web projects. Point
-it at a project or workspace folder and it finds apps and sites it knows how to
+it at your projects folder and it finds apps and sites it knows how to
 serve, starts the right local server, and gives you links for this computer,
 devices on the same local network, or anyone on the internet through a
 temporary Cloudflare Quick Tunnel. It lives in your system tray and keeps
