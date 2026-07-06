@@ -6,12 +6,10 @@
  * manages one local server and one cloudflared quick tunnel per project.
  *
  * Runs two ways:
- *  - dev:  node server.js   (dashboard opens in a normal browser tab via launchpad.bat)
- *  - exe:  bundled into Launchpad.exe via build-exe.mjs (Node SEA). In exe mode it
- *          opens its own app window, auto-exits when the window closes, scans the
- *          folder the exe sits in, and downloads cloudflared on first Share.
+ *  - packaged: required by electron-main.js, which calls start() and owns the window.
+ *  - dev:      node server.js  (open http://localhost:7777 in a browser; via launchpad.bat)
  *
- * No npm dependencies — plain Node built-ins only (SEA requirement).
+ * No runtime npm dependencies — plain Node built-ins only.
  */
 'use strict';
 
@@ -23,35 +21,17 @@ const net = require('net');
 const os = require('os');
 const { spawn, spawnSync } = require('child_process');
 
-let IS_SEA = false;
-try { IS_SEA = require('node:sea').isSea(); } catch (e) {}
 const IS_ELECTRON = !!process.versions.electron;
 
-// DATA dir (config.json, cloudflared.exe, projects to scan) sits next to the
-// exe: electron-main sets LAUNCHPAD_BASE_DIR (portable exe dir); SEA exes sit
-// beside their data; a plain checkout keeps everything beside server.js.
-const LAUNCHPAD_DIR = process.env.LAUNCHPAD_BASE_DIR
-  || (IS_SEA ? path.dirname(process.execPath) : __dirname);
+// DATA dir (config.json, cloudflared.exe, projects to scan): electron-main sets
+// LAUNCHPAD_BASE_DIR (userData when installed); a plain checkout keeps
+// everything beside server.js.
+const LAUNCHPAD_DIR = process.env.LAUNCHPAD_BASE_DIR || __dirname;
 const CONFIG_FILE = path.join(LAUNCHPAD_DIR, 'config.json');
-const ERROR_LOG = path.join(LAUNCHPAD_DIR, 'launchpad-error.log');
 
-// ASSET dir (index.html, tray.html, icon) ships WITH the code — inside the
-// Electron app.asar, not next to the exe. It must resolve from __dirname, or
-// a packaged build serves a blank page (public/ isn't on disk beside the exe).
+// ASSET dir (index.html, app.js, tray.html, icon) ships WITH the code — inside
+// the Electron app.asar, so it must resolve from __dirname, not the data dir.
 const PUBLIC_DIR = path.join(__dirname, 'public');
-
-// Replaced with the inlined dashboard HTML by build-exe.mjs — keep this line intact.
-let EMBEDDED_HTML = null;
-
-// In exe (GUI-subsystem) mode there is no console — route logs to a file so
-// startup problems on someone else's machine are still diagnosable.
-if (IS_SEA) {
-  const fileLog = (...a) => {
-    try { fs.appendFileSync(ERROR_LOG, new Date().toISOString() + ' ' + a.map(String).join(' ') + '\n'); } catch (e) {}
-  };
-  console.log = () => {};
-  console.error = fileLog;
-}
 
 const CLOUDFLARED_URL = 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe';
 
@@ -101,7 +81,7 @@ const config = Object.assign({
 function resolveProjectsDir() {
   if (config.projectsDir) return path.resolve(config.projectsDir);
   if (process.env.LAUNCHPAD_DEFAULT_PROJECTS_DIR) return path.resolve(process.env.LAUNCHPAD_DEFAULT_PROJECTS_DIR);
-  return path.resolve(LAUNCHPAD_DIR, IS_SEA || IS_ELECTRON ? '.' : '..');
+  return path.resolve(LAUNCHPAD_DIR, IS_ELECTRON ? '.' : '..');
 }
 let PROJECTS_DIR = resolveProjectsDir();
 
@@ -251,6 +231,13 @@ function scanProjects(force = false) {
   for (const [name, p] of projects) {
     if (!seen.has(name) && p.server.status === 'stopped' && p.tunnel.status === 'stopped') projects.delete(name);
   }
+  // prune remembered ports for projects that no longer exist, so config.json
+  // doesn't accumulate stale entries as folders come and go
+  let prunedPorts = false;
+  for (const name of Object.keys(config.ports)) {
+    if (!projects.has(name)) { delete config.ports[name]; prunedPorts = true; }
+  }
+  if (prunedPorts) saveConfig();
 }
 
 // ------------------------------------------------------- static serving ----
@@ -274,7 +261,8 @@ function serveStaticFile(root, urlPath, res) {
   if (stat && stat.isDirectory()) {
     const idx = path.join(filePath, 'index.html');
     if (fs.existsSync(idx)) { filePath = idx; stat = fs.statSync(idx); }
-    else return serveDirListing(root, filePath, rel, res);
+    // no index.html here — don't expose a directory listing of the folder
+    else { res.writeHead(404, { 'content-type': 'text/plain' }); res.end('404'); return; }
   }
   if (!stat) {
     // extensionless routes -> try .html (matches Cloudflare Pages behaviour)
@@ -284,20 +272,6 @@ function serveStaticFile(root, urlPath, res) {
   const type = MIME[path.extname(filePath).toLowerCase()] || 'application/octet-stream';
   res.writeHead(200, { 'content-type': type, 'cache-control': 'no-store' });
   fs.createReadStream(filePath).on('error', () => { try { res.end(); } catch (e) {} }).pipe(res);
-}
-
-function serveDirListing(root, dirPath, rel, res) {
-  let items = [];
-  try { items = fs.readdirSync(dirPath, { withFileTypes: true }); } catch (e) {}
-  items.sort((a, b) => (b.isDirectory() - a.isDirectory()) || a.name.localeCompare(b.name));
-  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
-  const base = rel.endsWith('/') ? rel : rel + '/';
-  const rows = items.filter(i => !i.name.startsWith('.')).map(i =>
-    `<li><a href="${esc(base + i.name)}${i.isDirectory() ? '/' : ''}">${i.isDirectory() ? '📁' : '📄'} ${esc(i.name)}</a></li>`).join('\n');
-  res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
-  res.end(`<!doctype html><meta name=viewport content="width=device-width,initial-scale=1"><title>${esc(rel)}</title>
-<style>body{font:15px/2 ui-monospace,Consolas,monospace;background:#f6f7f9;color:#333;padding:2rem}a{color:#2563eb;text-decoration:none}a:hover{text-decoration:underline}ul{list-style:none;padding:0}</style>
-<h3>${esc(rel || '/')}</h3><ul>${rel && rel !== '/' ? `<li><a href="${esc(path.posix.dirname(base.replace(/\/$/, '')) || '/')}">⬆ up</a></li>` : ''}${rows}</ul>`);
 }
 
 // ------------------------------------------------------ process helpers ----
@@ -394,6 +368,7 @@ function startServer(p, cb) {
   child.stdout.on('data', d => ringPush(p.server.log, d));
   child.stderr.on('data', d => ringPush(p.server.log, d));
   child.on('exit', code => {
+    if (p.server.child !== child) return;   // superseded by a newer start — ignore the old exit
     const wasStopping = p.server.status === 'stopping';
     p.server.child = null;
     p.server.pid = null;
@@ -465,21 +440,27 @@ const pendingTunnels = new Set();
 
 function downloadFile(url, dest, redirects, cb) {
   if (redirects > 5) return cb(new Error('too many redirects'));
-  https.get(url, res => {
+  let done = false;
+  const finish = err => { if (done) return; done = true; cb(err); };
+  const req = https.get(url, res => {
     if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
       res.resume();
-      return downloadFile(res.headers.location, dest, redirects + 1, cb);
+      return downloadFile(res.headers.location, dest, redirects + 1, finish);
     }
-    if (res.statusCode !== 200) { res.resume(); return cb(new Error('HTTP ' + res.statusCode)); }
+    if (res.statusCode !== 200) { res.resume(); return finish(new Error('HTTP ' + res.statusCode)); }
     const total = parseInt(res.headers['content-length'] || '0', 10);
     let got = 0;
     const out = fs.createWriteStream(dest);
     res.on('data', d => { got += d.length; if (total) cfState.pct = Math.round(got / total * 100); });
     res.pipe(out);
-    out.on('finish', () => out.close(() => cb(null)));
-    out.on('error', err => cb(err));
-    res.on('error', err => cb(err));
-  }).on('error', err => cb(err));
+    out.on('finish', () => out.close(() => finish(null)));
+    out.on('error', err => finish(err));
+    res.on('error', err => finish(err));
+  });
+  req.on('error', err => finish(err));
+  // abort if the connection stalls with no bytes for 30s (a genuine slow
+  // download keeps the socket active, so this only trips on a real hang)
+  req.setTimeout(30000, () => req.destroy(new Error('download timed out')));
 }
 
 function ensureCloudflared() {
@@ -554,6 +535,7 @@ function startTunnel(p, cb) {
     child.stdout.on('data', onData);
     child.stderr.on('data', onData);
     child.on('exit', () => {
+      if (p.tunnel.child !== child) return;   // superseded by a renew — the old exit must not touch new state
       p.tunnel.child = null;
       p.tunnel.pid = null;
       p.tunnel.status = p.tunnel.wantStop ? 'stopped' : 'stale';
@@ -672,8 +654,6 @@ function stopAll() {
   for (const p of projects.values()) { stopTunnel(p); stopServer(p); }
 }
 
-let lastPoll = Date.now();
-
 const ui = http.createServer((req, res) => {
   const u = new URL(req.url, 'http://x');
   const route = `${req.method} ${u.pathname}`;
@@ -690,10 +670,6 @@ const ui = http.createServer((req, res) => {
   }
 
   if (route === 'GET /' || route === 'GET /index.html') {
-    if (EMBEDDED_HTML) {
-      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
-      return res.end(EMBEDDED_HTML);
-    }
     return sendAsset(res, 'index.html', 'text/html; charset=utf-8');
   }
 
@@ -704,7 +680,6 @@ const ui = http.createServer((req, res) => {
   if (route === 'GET /api/ping') return json(res, 200, { launchpad: true });
 
   if (route === 'GET /api/state') {
-    lastPoll = Date.now();
     scanProjects();
     const list = [...projects.values()].sort((a, b) => a.name.localeCompare(b.name));
     return json(res, 200, {
@@ -714,6 +689,7 @@ const ui = http.createServer((req, res) => {
       repoUrl: 'https://github.com/flodisterhoft-ops/launchpad',
       cf: cfState,
       update: module.exports.updateInfo || null,
+      hidden: config.exclude.slice(),
       projects: list.map(projectJson),
     });
   }
@@ -736,6 +712,28 @@ const ui = http.createServer((req, res) => {
           else process.exit(0);
         }, 400);
         return;
+      }
+      // open a project's folder in the system file manager
+      if (act === '/api/reveal') {
+        const p = projects.get(body.name);
+        if (p) { try { spawn('explorer.exe', [p.dir], { detached: true, stdio: 'ignore' }).unref(); } catch (e) {} }
+        return json(res, 200, { ok: true });
+      }
+      // hide a project from the list (adds its name to config.exclude)
+      if (act === '/api/hide') {
+        const nm = body.name;
+        const p = projects.get(nm);
+        if (p) { stopTunnel(p); stopServer(p); projects.delete(nm); }
+        if (nm && !config.exclude.includes(nm)) { config.exclude.push(nm); saveConfig(); }
+        return json(res, 200, { ok: true });
+      }
+      // un-hide one project, or all of them, then rescan so they reappear
+      if (act === '/api/unhide') {
+        if (body.all) config.exclude = [];
+        else if (body.name) config.exclude = config.exclude.filter(x => x !== body.name);
+        saveConfig();
+        scanProjects(true);
+        return json(res, 200, { ok: true });
       }
       const names = body.names || (body.name ? [body.name] : []);
       const targets = names.map(n => projects.get(n)).filter(Boolean);
@@ -769,34 +767,6 @@ const ui = http.createServer((req, res) => {
 
 // ------------------------------------------------------- window / launch ---
 
-function findAppBrowser() {
-  const pf86 = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
-  const pf = process.env.ProgramFiles || 'C:\\Program Files';
-  const local = process.env.LOCALAPPDATA || '';
-  const candidates = [
-    path.join(pf86, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
-    path.join(pf, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
-    path.join(pf, 'Google', 'Chrome', 'Application', 'chrome.exe'),
-    path.join(pf86, 'Google', 'Chrome', 'Application', 'chrome.exe'),
-    local && path.join(local, 'Google', 'Chrome', 'Application', 'chrome.exe'),
-  ].filter(Boolean);
-  return candidates.find(p => fs.existsSync(p)) || null;
-}
-
-function openWindow(port) {
-  const url = `http://localhost:${port}/`;
-  const browser = findAppBrowser();
-  try {
-    if (browser) {
-      spawn(browser, [`--app=${url}`, '--window-size=452,700'], { detached: true, stdio: 'ignore' }).unref();
-    } else {
-      spawn('cmd.exe', ['/c', 'start', '', url], { windowsHide: true, detached: true, stdio: 'ignore' }).unref();
-    }
-  } catch (e) {
-    console.error('Could not open a window:', e.message);
-  }
-}
-
 // try the control port, walk up if taken; if a Launchpad already owns it,
 // just pop another window at the running instance and bow out
 const CANDIDATE_PORTS = Array.from({ length: 10 }, (_, i) => config.controlPort + i);
@@ -825,9 +795,9 @@ function start() {
         if (err.code !== 'EADDRINUSE') return reject(err);
         probeLaunchpad(port, isLp => {
           if (isLp && !IS_ELECTRON) {
-            // already running — just show it
-            if (IS_SEA) { openWindow(port); setTimeout(() => process.exit(0), 700); }
-            else { console.log(`Launchpad already running on port ${port} — opening it instead.`); process.exit(2); }
+            // dev mode: another Launchpad already owns this port
+            console.log(`Launchpad already running on port ${port}.`);
+            process.exit(2);
           } else {
             // electron has its own single-instance lock; a foreign launchpad
             // on this port just means we take the next one
@@ -856,23 +826,11 @@ function onReady(port) {
   console.log('  Sharing engine:     ' + (cloudflaredPath || 'downloads automatically on first Share'));
   console.log('');
   console.log('  Keep this window open (minimized is fine). Ctrl+C stops everything.');
-
-  if (IS_SEA) {
-    openWindow(port);
-    // no window has polled for a while -> the user closed it; shut down.
-    // two strikes so a sleep/resume gap can't cause a false shutdown.
-    let misses = 0;
-    setInterval(() => {
-      if (Date.now() - lastPoll > 25000) {
-        if (++misses >= 2) { stopAll(); cleanup(); process.exit(0); }
-      } else misses = 0;
-    }, 20000);
-  }
 }
 
-// standalone (node server.js / SEA exe) starts immediately; under Electron
-// the shell requires this module and calls start() itself
-if (require.main === module || IS_SEA) start();
+// standalone (node server.js) starts immediately; under Electron the shell
+// requires this module and calls start() itself
+if (require.main === module) start();
 
 module.exports = {
   start, stopAll, setProjectsDir, onQuit: null, updateInfo: null, appVersion: null,

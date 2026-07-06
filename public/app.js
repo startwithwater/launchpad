@@ -5,8 +5,12 @@ const selected = new Set();
 const openLogs = new Set();
 let state = null;
 let firstRender = true;
+let filterText = '';
 
 const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+
+const ICON_FOLDER = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3l1.5 1.5h4.5A1.5 1.5 0 0 1 14 6v5.5A1.5 1.5 0 0 1 12.5 13h-9A1.5 1.5 0 0 1 2 11.5z"/></svg>';
+const ICON_HIDE = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 8s2.4-4 6-4 6 4 6 4-2.4 4-6 4-6-4-6-4z"/><circle cx="8" cy="8" r="1.6"/><path d="M2.5 2.5l11 11"/></svg>';
 
 function toast(msg, bad) {
   const t = $('#toast');
@@ -92,7 +96,12 @@ function rowHTML(p, i) {
 
   const err = p.server.status === 'error' && p.server.error ? `<div class="err">${esc(p.server.error)}</div>` : '';
   const note = p.needsNode && !running && !busy ? `<div class="note">Needs Node.js on this computer (nodejs.org) — the Start/Share buttons are disabled.</div>` : '';
-  const log = openLogs.has(p.name) ? `<div class="logbox" data-log="${n}">loading…</div>` : '';
+  const open = openLogs.has(p.name);
+  const tools = open ? `<div class="rowtools">
+      <button data-act="reveal" data-p="${n}" title="Open this project's folder">${ICON_FOLDER} Open folder</button>
+      <button class="danger" data-act="hide" data-p="${n}" title="Hide this from the list (restore via “show all”)">${ICON_HIDE} Hide</button>
+    </div>` : '';
+  const log = open ? `<div class="logbox" data-log="${n}">loading…</div>` : '';
   const [word, wcls] = statusWord(p);
   const kind = p.mode !== 'static' ? `<span class="sub">${esc(p.mode)}</span>` : '';
 
@@ -105,7 +114,7 @@ function rowHTML(p, i) {
       <span class="status ${wcls}">${word}</span>
     </div>
     <div class="row-actions">${actions}</div>
-    ${urls ? `<div class="urls">${urls}</div>` : ''}${err}${note}${log}
+    ${urls ? `<div class="urls">${urls}</div>` : ''}${err}${note}${tools}${log}
   </div>`;
 }
 
@@ -132,17 +141,23 @@ function render() {
 
   syncUpdateUI(state.update);
   refreshAbout();
+  updateHiddenNote();
+
+  const q = filterText.trim().toLowerCase();
+  const visible = q ? ps.filter(p => p.name.toLowerCase().includes(q)) : ps;
 
   // Rebuild the list only when something it shows actually changed — a
   // constant repaint flickers and can swallow a click mid-press.
-  const sig = JSON.stringify(ps.map(p =>
+  const sig = JSON.stringify(visible.map(p =>
     [p.name, p.mode, p.port, p.needsNode, p.server.status, p.server.error, p.tunnel.status, p.tunnel.url, p.localUrl, p.lanUrl]))
-    + '|' + [...openLogs].join(',');
+    + '|' + [...openLogs].join(',') + '|' + q;
   if (sig !== lastSig) {
     lastSig = sig;
-    list.innerHTML = ps.length
-      ? ps.map((p, i) => rowHTML(p, i)).join('')
-      : '<div class="empty">No projects found yet.<br>Click <b>change</b> at the top to pick your projects folder.</div>';
+    list.innerHTML = visible.length
+      ? visible.map((p, i) => rowHTML(p, i)).join('')
+      : (ps.length
+          ? `<div class="empty">No projects match “${esc(q)}”.</div>`
+          : '<div class="empty">No projects found yet.<br>Click <b>change</b> at the top to pick your projects folder.</div>');
     firstRender = false;
   }
 
@@ -194,6 +209,8 @@ list.addEventListener('click', e => {
   if (act === 'tunnel') api('/api/start', { name, tunnel: true }).finally(done);
   if (act === 'stop') api('/api/stop', { name, server: true, tunnel: true }).finally(done);
   if (act === 'renew') { api('/api/renew', { name }).finally(done); toast('Getting a fresh link…'); }
+  if (act === 'reveal') { api('/api/reveal', { name }).catch(() => {}); btn.disabled = false; }
+  if (act === 'hide') { openLogs.delete(name); selected.delete(name); api('/api/hide', { name }).finally(done); toast('Hidden — restore from “show all”'); }
   if (act === 'log') {
     openLogs.has(name) ? openLogs.delete(name) : openLogs.add(name);
     btn.disabled = false;
@@ -439,6 +456,26 @@ $('#ab-check-btn').addEventListener('click', () => {
   $('#ab-status').textContent = 'Checking…'; $('#ab-status').className = 'ab-status';
   $('#ab-check-btn').disabled = true;
   window.shell.checkUpdates();
+});
+
+// ---------------- filter, hide/unhide, keyboard -----------------------------
+$('#filter').addEventListener('input', e => { filterText = e.target.value; lastSig = null; render(); });
+
+function updateHiddenNote() {
+  const el = $('#unhide-all');
+  const n = (state && state.hidden && state.hidden.length) || 0;
+  if (n > 0) { el.hidden = false; el.textContent = `${n} hidden — show all`; }
+  else el.hidden = true;
+}
+$('#unhide-all').addEventListener('click', () => api('/api/unhide', { all: true }).finally(() => setTimeout(poll, 200)));
+
+// Esc closes the About panel, or dismisses the update popup when it's just an offer
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (aboutOpen) { closeAbout(); return; }
+  if ($('#upmodal').classList.contains('show') && umPhase === 'available') {
+    umDismissed = umVersion; umPhase = null; closeModal();
+  }
 });
 
 poll();

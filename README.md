@@ -85,8 +85,10 @@ tells you when that’s the case.
 ## Using it
 
 - **Start / Share** one project, or tick several (or **All**) and act on them at once.
+- **Filter** box at the top narrows a long list as you type.
 - **New link** swaps a public link for a fresh one.
-- **…** shows the raw server output if something misbehaves.
+- **…** opens a project's details — raw server output, plus **Open folder** and **Hide**.
+  Hidden projects come back via the *“N hidden — show all”* link.
 - Closing the window keeps local servers and public links running in the tray. **Single-click** the
   tray icon for the quick panel, **double-click** to reopen the window.
 - **Quit** (in-app or the tray menu) stops all local servers and public links.
