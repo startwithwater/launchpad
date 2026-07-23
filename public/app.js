@@ -283,7 +283,7 @@ $('#bulk').addEventListener('click', e => {
   const kind = btn.dataset.bulk;
   const done = () => setTimeout(poll, 250);
   if (kind === 'clear') {
-    names.forEach(name => selected.delete(name));
+    selected.clear();
     lastSig = null;
     render();
     return;
