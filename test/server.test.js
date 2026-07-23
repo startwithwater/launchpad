@@ -3,16 +3,24 @@
 // static-server path-containment guard. Run with `npm test` (Node's built-in
 // test runner, no dependencies). Requiring server.js does NOT start it: the
 // auto-start guard only fires when the file is the main module or a SEA binary.
-const test = require('node:test');
+const { test, afterEach } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const srv = require('../server.js');
 
+const tmpProjects = new Set();
+
+afterEach(() => {
+  for (const dir of tmpProjects) fs.rmSync(dir, { recursive: true, force: true });
+  tmpProjects.clear();
+});
+
 // Build a throwaway project folder from a { relativePath: contents } map.
 function tmpProject(files) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-test-'));
+  tmpProjects.add(dir);
   for (const [rel, body] of Object.entries(files)) {
     const full = path.join(dir, rel);
     fs.mkdirSync(path.dirname(full), { recursive: true });
