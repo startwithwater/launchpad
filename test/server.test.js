@@ -130,6 +130,22 @@ test('gitCheckoutKind: distinguishes primary checkouts from linked worktrees', (
   assert.equal(srv.gitCheckoutKind(linked), 'linked');
 });
 
+test('gitCheckoutKind: treats a submodule .git file as a primary checkout', () => {
+  const parent = tmpProject({ '.git/HEAD': 'ref: refs/heads/main' });
+  const submodule = tmpProject({
+    '.git': `gitdir: ${path.join(parent, '.git', 'modules', 'vendor')}`,
+  });
+  assert.equal(srv.gitCheckoutKind(submodule), 'primary');
+});
+
+test('gitCheckoutKind: detects a linked worktree backed by a bare repository', () => {
+  const root = tmpProject({ 'project.git/HEAD': 'ref: refs/heads/main' });
+  const linked = tmpProject({
+    '.git': `gitdir: ${path.join(root, 'project.git', 'worktrees', 'feature')}`,
+  });
+  assert.equal(srv.gitCheckoutKind(linked), 'linked');
+});
+
 test('findProjects: marks projects inside linked worktrees', () => {
   const root = tmpProject({
     'main/.git/HEAD': 'ref: refs/heads/main',

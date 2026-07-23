@@ -106,6 +106,7 @@ function rowHTML(p, i) {
   const log = open ? `<div class="logbox" data-log="${n}">loading…</div>` : '';
   const [word, wcls] = statusWord(p);
   const kind = p.mode !== 'static' ? `<span class="sub">${esc(p.mode)}</span>` : '';
+  const worktree = p.isWorktree ? '<span class="sub worktree">worktree</span>' : '';
 
   return `<div class="row" style="animation-delay:${firstRender ? Math.min(i * 24, 380) : 0}ms">
     <input type="checkbox" data-sel="${n}" ${selected.has(p.name) ? 'checked' : ''}>
@@ -113,6 +114,7 @@ function rowHTML(p, i) {
       <span class="dot ${overallDot(p)}" style="align-self:center"></span>
       <span class="name">${n}</span>
       ${kind}
+      ${worktree}
       <span class="status ${wcls}">${word}</span>
     </div>
     <div class="row-actions">${actions}</div>
@@ -130,6 +132,13 @@ function visibleProjects() {
   const q = filterText.trim().toLowerCase();
   const scoped = scopedProjects();
   return q ? scoped.filter(p => p.name.toLowerCase().includes(q)) : scoped;
+}
+
+function pruneHiddenSelections(projects) {
+  const visibleNames = new Set(projects.map(p => p.name));
+  for (const name of selected) {
+    if (!visibleNames.has(name)) selected.delete(name);
+  }
 }
 
 function render() {
@@ -173,6 +182,7 @@ function render() {
 
   const q = filterText.trim().toLowerCase();
   const visible = visibleProjects();
+  pruneHiddenSelections(visible);
 
   // Rebuild the list only when something it shows actually changed — a
   // constant repaint flickers and can swallow a click mid-press.
@@ -268,6 +278,7 @@ $('#selall').addEventListener('change', e => {
 $('#bulk').addEventListener('click', e => {
   const btn = e.target.closest('[data-bulk]');
   if (!btn) return;
+  pruneHiddenSelections(visibleProjects());
   const names = [...selected];
   const kind = btn.dataset.bulk;
   const done = () => setTimeout(poll, 250);
@@ -492,7 +503,6 @@ $('#ab-check-btn').addEventListener('click', () => {
 $('#filter').addEventListener('input', e => { filterText = e.target.value; lastSig = null; render(); });
 $('#main-only').addEventListener('click', () => {
   mainOnly = !mainOnly;
-  if (mainOnly && state) state.projects.filter(p => p.isWorktree).forEach(p => selected.delete(p.name));
   try { localStorage.setItem('launchpad-main-only', String(mainOnly)); } catch (e) {}
   lastSig = null;
   render();
