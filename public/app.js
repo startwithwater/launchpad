@@ -6,6 +6,8 @@ const openLogs = new Set();
 let state = null;
 let firstRender = true;
 let filterText = '';
+let mainOnly = false;
+try { mainOnly = localStorage.getItem('launchpad-main-only') === 'true'; } catch (e) {}
 
 const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
 
@@ -104,6 +106,7 @@ function rowHTML(p, i) {
   const log = open ? `<div class="logbox" data-log="${n}">loading…</div>` : '';
   const [word, wcls] = statusWord(p);
   const kind = p.mode !== 'static' ? `<span class="sub">${esc(p.mode)}</span>` : '';
+  const worktree = p.isWorktree ? '<span class="sub worktree">worktree</span>' : '';
 
   return `<div class="row" style="animation-delay:${firstRender ? Math.min(i * 24, 380) : 0}ms">
     <input type="checkbox" data-sel="${n}" ${selected.has(p.name) ? 'checked' : ''}>
@@ -111,6 +114,7 @@ function rowHTML(p, i) {
       <span class="dot ${overallDot(p)}" style="align-self:center"></span>
       <span class="name">${n}</span>
       ${kind}
+      ${worktree}
       <span class="status ${wcls}">${word}</span>
     </div>
     <div class="row-actions">${actions}</div>
@@ -119,13 +123,49 @@ function rowHTML(p, i) {
 }
 
 let lastSig = null;
+function scopedProjects() {
+  if (!state) return [];
+  return mainOnly ? state.projects.filter(p => !p.isWorktree) : state.projects;
+}
+
+function visibleProjects() {
+  const q = filterText.trim().toLowerCase();
+  const scoped = scopedProjects();
+  return q ? scoped.filter(p => p.name.toLowerCase().includes(q)) : scoped;
+}
+
+function selectedNamesIn(projects) {
+  return projects.filter(p => selected.has(p.name)).map(p => p.name);
+}
+
+function syncBulk(projects = visibleProjects()) {
+  const count = selectedNamesIn(projects).length;
+  $('#bulk').classList.toggle('show', count > 0);
+  $('#bulkn').textContent = count;
+}
+
 function render() {
   if (!state) return;
   $('#path').textContent = state.projectsDir;
   const ps = state.projects;
-  const up = ps.filter(p => p.server.status === 'running').length;
-  const tn = ps.filter(p => p.tunnel.status === 'running').length;
-  $('#counts').textContent = `${ps.length} projects · ${up} running · ${tn} shared`;
+  const scoped = scopedProjects();
+  const worktreeCount = ps.filter(p => p.isWorktree).length;
+  const up = scoped.filter(p => p.server.status === 'running').length;
+  const tn = scoped.filter(p => p.tunnel.status === 'running').length;
+  const countParts = [
+    `${scoped.length} project${scoped.length === 1 ? '' : 's'}`,
+    `${up} running`,
+    `${tn} shared`,
+  ];
+  if (mainOnly && worktreeCount) countParts.splice(1, 0, `${worktreeCount} worktree${worktreeCount === 1 ? '' : 's'} hidden`);
+  $('#counts').textContent = countParts.join(' · ');
+
+  const mainToggle = $('#main-only');
+  mainToggle.classList.toggle('active', mainOnly);
+  mainToggle.setAttribute('aria-pressed', String(mainOnly));
+  mainToggle.title = mainOnly
+    ? `Showing primary checkouts and regular projects. ${worktreeCount} linked worktree${worktreeCount === 1 ? '' : 's'} hidden.`
+    : 'Hide linked Git worktrees';
 
   const cf = state.cf || {};
   const banner = $('#cfbanner');
@@ -144,32 +184,32 @@ function render() {
   updateHiddenNote();
 
   const q = filterText.trim().toLowerCase();
-  const visible = q ? ps.filter(p => p.name.toLowerCase().includes(q)) : ps;
+  const visible = visibleProjects();
 
   // Rebuild the list only when something it shows actually changed — a
   // constant repaint flickers and can swallow a click mid-press.
   const sig = JSON.stringify(visible.map(p =>
-    [p.name, p.mode, p.port, p.needsNode, p.server.status, p.server.error, p.tunnel.status, p.tunnel.url, p.localUrl, p.lanUrl]))
-    + '|' + [...openLogs].join(',') + '|' + q;
+    [p.name, p.mode, p.isWorktree, p.port, p.needsNode, p.server.status, p.server.error, p.tunnel.status, p.tunnel.url, p.localUrl, p.lanUrl]))
+    + '|' + [...openLogs].join(',') + '|' + q + '|' + mainOnly;
   if (sig !== lastSig) {
     lastSig = sig;
     list.innerHTML = visible.length
       ? visible.map((p, i) => rowHTML(p, i)).join('')
-      : (ps.length
+      : (scoped.length
           ? `<div class="empty">No projects match “${esc(q)}”.</div>`
-          : '<div class="empty">No projects found yet.<br>Click <b>change</b> at the top to pick your projects folder.</div>');
+          : (mainOnly && worktreeCount
+            ? '<div class="empty">No primary checkouts found.<br>Turn off <b>Main only</b> to show linked worktrees.</div>'
+            : '<div class="empty">No projects found yet.<br>Click <b>change</b> at the top to pick your projects folder.</div>'));
     firstRender = false;
   }
 
-  $('#bulk').classList.toggle('show', selected.size > 0);
-  $('#bulkn').textContent = selected.size;
-  syncSelAll();
+  syncBulk(visible);
+  syncSelAll(visible);
   refreshOpenLogs();
 }
 
-function syncSelAll() {
+function syncSelAll(ps = visibleProjects()) {
   if (!state) return;
-  const ps = state.projects;
   const picked = ps.filter(p => selected.has(p.name)).length;
   const sa = $('#selall');
   sa.checked = ps.length > 0 && picked === ps.length;
@@ -223,14 +263,15 @@ list.addEventListener('change', e => {
   const cb = e.target.closest('[data-sel]');
   if (!cb) return;
   cb.checked ? selected.add(cb.dataset.sel) : selected.delete(cb.dataset.sel);
-  $('#bulk').classList.toggle('show', selected.size > 0);
-  $('#bulkn').textContent = selected.size;
+  syncBulk();
   syncSelAll();
 });
 
 $('#selall').addEventListener('change', e => {
-  selected.clear();
-  if (e.target.checked && state) state.projects.forEach(p => selected.add(p.name));
+  visibleProjects().forEach(p => {
+    if (e.target.checked) selected.add(p.name);
+    else selected.delete(p.name);
+  });
   lastSig = null;
   render();
 });
@@ -238,10 +279,15 @@ $('#selall').addEventListener('change', e => {
 $('#bulk').addEventListener('click', e => {
   const btn = e.target.closest('[data-bulk]');
   if (!btn) return;
-  const names = [...selected];
+  const names = selectedNamesIn(visibleProjects());
   const kind = btn.dataset.bulk;
   const done = () => setTimeout(poll, 250);
-  if (kind === 'clear') { selected.clear(); lastSig = null; render(); return; }
+  if (kind === 'clear') {
+    selected.clear();
+    lastSig = null;
+    render();
+    return;
+  }
   if (!names.length) return;
   if (kind === 'server') api('/api/start', { names, server: true }).finally(done);
   if (kind === 'tunnel') api('/api/start', { names, tunnel: true }).finally(done);
@@ -460,6 +506,12 @@ $('#ab-check-btn').addEventListener('click', () => {
 
 // ---------------- filter, hide/unhide, keyboard -----------------------------
 $('#filter').addEventListener('input', e => { filterText = e.target.value; lastSig = null; render(); });
+$('#main-only').addEventListener('click', () => {
+  mainOnly = !mainOnly;
+  try { localStorage.setItem('launchpad-main-only', String(mainOnly)); } catch (e) {}
+  lastSig = null;
+  render();
+});
 
 function updateHiddenNote() {
   const el = $('#unhide-all');
