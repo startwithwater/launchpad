@@ -134,11 +134,14 @@ function visibleProjects() {
   return q ? scoped.filter(p => p.name.toLowerCase().includes(q)) : scoped;
 }
 
-function pruneHiddenSelections(projects) {
-  const visibleNames = new Set(projects.map(p => p.name));
-  for (const name of selected) {
-    if (!visibleNames.has(name)) selected.delete(name);
-  }
+function selectedNamesIn(projects) {
+  return projects.filter(p => selected.has(p.name)).map(p => p.name);
+}
+
+function syncBulk(projects = visibleProjects()) {
+  const count = selectedNamesIn(projects).length;
+  $('#bulk').classList.toggle('show', count > 0);
+  $('#bulkn').textContent = count;
 }
 
 function render() {
@@ -182,7 +185,6 @@ function render() {
 
   const q = filterText.trim().toLowerCase();
   const visible = visibleProjects();
-  pruneHiddenSelections(visible);
 
   // Rebuild the list only when something it shows actually changed — a
   // constant repaint flickers and can swallow a click mid-press.
@@ -201,15 +203,13 @@ function render() {
     firstRender = false;
   }
 
-  $('#bulk').classList.toggle('show', selected.size > 0);
-  $('#bulkn').textContent = selected.size;
-  syncSelAll();
+  syncBulk(visible);
+  syncSelAll(visible);
   refreshOpenLogs();
 }
 
-function syncSelAll() {
+function syncSelAll(ps = visibleProjects()) {
   if (!state) return;
-  const ps = visibleProjects();
   const picked = ps.filter(p => selected.has(p.name)).length;
   const sa = $('#selall');
   sa.checked = ps.length > 0 && picked === ps.length;
@@ -263,14 +263,15 @@ list.addEventListener('change', e => {
   const cb = e.target.closest('[data-sel]');
   if (!cb) return;
   cb.checked ? selected.add(cb.dataset.sel) : selected.delete(cb.dataset.sel);
-  $('#bulk').classList.toggle('show', selected.size > 0);
-  $('#bulkn').textContent = selected.size;
+  syncBulk();
   syncSelAll();
 });
 
 $('#selall').addEventListener('change', e => {
-  selected.clear();
-  if (e.target.checked) visibleProjects().forEach(p => selected.add(p.name));
+  visibleProjects().forEach(p => {
+    if (e.target.checked) selected.add(p.name);
+    else selected.delete(p.name);
+  });
   lastSig = null;
   render();
 });
@@ -278,11 +279,15 @@ $('#selall').addEventListener('change', e => {
 $('#bulk').addEventListener('click', e => {
   const btn = e.target.closest('[data-bulk]');
   if (!btn) return;
-  pruneHiddenSelections(visibleProjects());
-  const names = [...selected];
+  const names = selectedNamesIn(visibleProjects());
   const kind = btn.dataset.bulk;
   const done = () => setTimeout(poll, 250);
-  if (kind === 'clear') { selected.clear(); lastSig = null; render(); return; }
+  if (kind === 'clear') {
+    names.forEach(name => selected.delete(name));
+    lastSig = null;
+    render();
+    return;
+  }
   if (!names.length) return;
   if (kind === 'server') api('/api/start', { names, server: true }).finally(done);
   if (kind === 'tunnel') api('/api/start', { names, tunnel: true }).finally(done);
