@@ -6,6 +6,8 @@ const openLogs = new Set();
 let state = null;
 let firstRender = true;
 let filterText = '';
+let mainOnly = false;
+try { mainOnly = localStorage.getItem('launchpad-main-only') === 'true'; } catch (e) {}
 
 const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
 
@@ -119,13 +121,39 @@ function rowHTML(p, i) {
 }
 
 let lastSig = null;
+function scopedProjects() {
+  if (!state) return [];
+  return mainOnly ? state.projects.filter(p => !p.isWorktree) : state.projects;
+}
+
+function visibleProjects() {
+  const q = filterText.trim().toLowerCase();
+  const scoped = scopedProjects();
+  return q ? scoped.filter(p => p.name.toLowerCase().includes(q)) : scoped;
+}
+
 function render() {
   if (!state) return;
   $('#path').textContent = state.projectsDir;
   const ps = state.projects;
-  const up = ps.filter(p => p.server.status === 'running').length;
-  const tn = ps.filter(p => p.tunnel.status === 'running').length;
-  $('#counts').textContent = `${ps.length} projects · ${up} running · ${tn} shared`;
+  const scoped = scopedProjects();
+  const worktreeCount = ps.filter(p => p.isWorktree).length;
+  const up = scoped.filter(p => p.server.status === 'running').length;
+  const tn = scoped.filter(p => p.tunnel.status === 'running').length;
+  const countParts = [
+    `${scoped.length} project${scoped.length === 1 ? '' : 's'}`,
+    `${up} running`,
+    `${tn} shared`,
+  ];
+  if (mainOnly && worktreeCount) countParts.splice(1, 0, `${worktreeCount} worktree${worktreeCount === 1 ? '' : 's'} hidden`);
+  $('#counts').textContent = countParts.join(' · ');
+
+  const mainToggle = $('#main-only');
+  mainToggle.classList.toggle('active', mainOnly);
+  mainToggle.setAttribute('aria-pressed', String(mainOnly));
+  mainToggle.title = mainOnly
+    ? `Showing primary checkouts and regular projects. ${worktreeCount} linked worktree${worktreeCount === 1 ? '' : 's'} hidden.`
+    : 'Hide linked Git worktrees';
 
   const cf = state.cf || {};
   const banner = $('#cfbanner');
@@ -144,20 +172,22 @@ function render() {
   updateHiddenNote();
 
   const q = filterText.trim().toLowerCase();
-  const visible = q ? ps.filter(p => p.name.toLowerCase().includes(q)) : ps;
+  const visible = visibleProjects();
 
   // Rebuild the list only when something it shows actually changed — a
   // constant repaint flickers and can swallow a click mid-press.
   const sig = JSON.stringify(visible.map(p =>
-    [p.name, p.mode, p.port, p.needsNode, p.server.status, p.server.error, p.tunnel.status, p.tunnel.url, p.localUrl, p.lanUrl]))
-    + '|' + [...openLogs].join(',') + '|' + q;
+    [p.name, p.mode, p.isWorktree, p.port, p.needsNode, p.server.status, p.server.error, p.tunnel.status, p.tunnel.url, p.localUrl, p.lanUrl]))
+    + '|' + [...openLogs].join(',') + '|' + q + '|' + mainOnly;
   if (sig !== lastSig) {
     lastSig = sig;
     list.innerHTML = visible.length
       ? visible.map((p, i) => rowHTML(p, i)).join('')
-      : (ps.length
+      : (scoped.length
           ? `<div class="empty">No projects match “${esc(q)}”.</div>`
-          : '<div class="empty">No projects found yet.<br>Click <b>change</b> at the top to pick your projects folder.</div>');
+          : (mainOnly && worktreeCount
+            ? '<div class="empty">No primary checkouts found.<br>Turn off <b>Main only</b> to show linked worktrees.</div>'
+            : '<div class="empty">No projects found yet.<br>Click <b>change</b> at the top to pick your projects folder.</div>'));
     firstRender = false;
   }
 
@@ -169,7 +199,7 @@ function render() {
 
 function syncSelAll() {
   if (!state) return;
-  const ps = state.projects;
+  const ps = visibleProjects();
   const picked = ps.filter(p => selected.has(p.name)).length;
   const sa = $('#selall');
   sa.checked = ps.length > 0 && picked === ps.length;
@@ -230,7 +260,7 @@ list.addEventListener('change', e => {
 
 $('#selall').addEventListener('change', e => {
   selected.clear();
-  if (e.target.checked && state) state.projects.forEach(p => selected.add(p.name));
+  if (e.target.checked) visibleProjects().forEach(p => selected.add(p.name));
   lastSig = null;
   render();
 });
@@ -460,6 +490,13 @@ $('#ab-check-btn').addEventListener('click', () => {
 
 // ---------------- filter, hide/unhide, keyboard -----------------------------
 $('#filter').addEventListener('input', e => { filterText = e.target.value; lastSig = null; render(); });
+$('#main-only').addEventListener('click', () => {
+  mainOnly = !mainOnly;
+  if (mainOnly && state) state.projects.filter(p => p.isWorktree).forEach(p => selected.delete(p.name));
+  try { localStorage.setItem('launchpad-main-only', String(mainOnly)); } catch (e) {}
+  lastSig = null;
+  render();
+});
 
 function updateHiddenNote() {
   const el = $('#unhide-all');

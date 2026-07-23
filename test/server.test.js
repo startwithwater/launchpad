@@ -113,6 +113,30 @@ test('findProjects: node_modules and hidden folders are skipped', () => {
   assert.deepEqual(srv.findProjects(root).map(f => f.name), ['real']);
 });
 
+test('gitCheckoutKind: distinguishes primary checkouts from linked worktrees', () => {
+  const primary = tmpProject({ '.git/HEAD': 'ref: refs/heads/main' });
+  const linked = tmpProject({
+    '.git': `gitdir: ${path.join(primary, '.git', 'worktrees', 'feature')}`,
+  });
+  assert.equal(srv.gitCheckoutKind(primary), 'primary');
+  assert.equal(srv.gitCheckoutKind(linked), 'linked');
+});
+
+test('findProjects: marks projects inside linked worktrees', () => {
+  const root = tmpProject({
+    'main/.git/HEAD': 'ref: refs/heads/main',
+    'main/index.html': '<h1>main</h1>',
+  });
+  const linkedGitDir = path.join(root, 'main', '.git', 'worktrees', 'feature');
+  fs.mkdirSync(path.join(root, 'feature', 'apps'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'feature', '.git'), `gitdir: ${linkedGitDir}`);
+  fs.writeFileSync(path.join(root, 'feature', 'apps', 'index.html'), '<h1>feature</h1>');
+
+  const found = srv.findProjects(root);
+  assert.equal(found.find(p => p.name === 'main').isWorktree, false);
+  assert.equal(found.find(p => p.name === 'feature/apps').isWorktree, true);
+});
+
 test('isInsideRoot: an ordinary nested file is inside the root', () => {
   const root = path.normalize('/srv/site');
   assert.equal(srv.isInsideRoot(root, path.join(root, 'a', 'b.txt')), true);

@@ -168,6 +168,31 @@ function detectProject(name, dir) {
   return { mode, detail, docroot };
 }
 
+// Git stores a primary checkout's metadata in a .git directory. Linked
+// worktrees instead have a .git file pointing into <repo>/.git/worktrees/.
+// Other .git files, such as submodule pointers, still count as primary here.
+function gitCheckoutKind(dir) {
+  const marker = path.join(dir, '.git');
+  let stat;
+  try { stat = fs.statSync(marker); } catch (e) { return null; }
+  if (stat.isDirectory()) return 'primary';
+  if (!stat.isFile()) return null;
+
+  let contents = '';
+  try { contents = fs.readFileSync(marker, 'utf8'); } catch (e) { return null; }
+  const match = contents.match(/^\s*gitdir:\s*(.+?)\s*$/im);
+  if (!match) return null;
+
+  const gitDir = path.resolve(dir, match[1]);
+  const parts = path.normalize(gitDir).split(path.sep);
+  const linked = parts.some((part, i) =>
+    part.toLowerCase() === 'worktrees'
+    && i > 0
+    && parts[i - 1].toLowerCase().endsWith('.git')
+    && i < parts.length - 1);
+  return linked ? 'linked' : 'primary';
+}
+
 // Walk the projects folder looking for things that can actually be previewed:
 // wrangler/npm apps and static sites, at any depth (up to SCAN_MAX_DEPTH). A
 // folder that detects as a project is listed and not descended into further;
@@ -183,9 +208,16 @@ function findProjects(rootDir) {
   const found = [];
   // pointing the picker directly at a single project should still work
   const rootDet = detectProject(path.basename(rootDir), rootDir);
-  if (rootDet) return [{ name: path.basename(rootDir), dir: rootDir, det: rootDet }];
+  if (rootDet) {
+    return [{
+      name: path.basename(rootDir),
+      dir: rootDir,
+      det: rootDet,
+      isWorktree: gitCheckoutKind(rootDir) === 'linked',
+    }];
+  }
   let visited = 0;
-  (function walk(dir, rel, depth) {
+  (function walk(dir, rel, depth, inheritedWorktree) {
     if (depth > SCAN_MAX_DEPTH) return;
     let entries = [];
     try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch (e) {}
@@ -197,11 +229,13 @@ function findProjects(rootDir) {
       if (config.exclude.includes(base) || config.exclude.includes(name)) continue;
       if (++visited > SCAN_MAX_DIRS) return;
       const sub = path.join(dir, base);
+      const checkoutKind = gitCheckoutKind(sub);
+      const isWorktree = checkoutKind ? checkoutKind === 'linked' : inheritedWorktree;
       const det = detectProject(name, sub);
-      if (det) found.push({ name, dir: sub, det });
-      else walk(sub, name, depth + 1);
+      if (det) found.push({ name, dir: sub, det, isWorktree });
+      else walk(sub, name, depth + 1, isWorktree);
     }
-  })(rootDir, '', 1);
+  })(rootDir, '', 1, gitCheckoutKind(rootDir) === 'linked');
   return found;
 }
 
@@ -211,7 +245,7 @@ function scanProjects(force = false) {
   lastScanAt = now;
 
   const seen = new Set();
-  for (const { name, dir, det } of findProjects(PROJECTS_DIR)) {
+  for (const { name, dir, det, isWorktree } of findProjects(PROJECTS_DIR)) {
     seen.add(name);
     let p = projects.get(name);
     if (!p) {
@@ -225,6 +259,7 @@ function scanProjects(force = false) {
     p.mode = det.mode;
     p.detail = det.detail;
     p.docroot = det.docroot;
+    p.isWorktree = !!isWorktree;
     p.port = assignPort(name);
   }
   // drop projects whose folder disappeared (only if nothing is running)
@@ -615,6 +650,7 @@ function projectJson(p) {
     name: p.name,
     mode: p.mode,
     detail: p.detail,
+    isWorktree: !!p.isWorktree,
     port: p.actualPort || p.port,
     needsNode: (p.mode === 'wrangler' || p.mode === 'npm' || p.mode === 'custom') && !HAS_NODE_TOOLS,
     localUrl: p.server.status === 'running' ? `http://localhost:${p.actualPort || p.port}/` : null,
@@ -835,7 +871,7 @@ if (require.main === module) start();
 module.exports = {
   start, stopAll, setProjectsDir, onQuit: null, updateInfo: null, appVersion: null,
   // exported for the test suite
-  detectProject, findProjects, isInsideRoot,
+  detectProject, findProjects, gitCheckoutKind, isInsideRoot,
   get port() { return boundPort; },
   get projectsDir() { return PROJECTS_DIR; },
 };
