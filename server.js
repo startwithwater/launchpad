@@ -184,12 +184,11 @@ function gitCheckoutKind(dir) {
   if (!match) return null;
 
   const gitDir = path.resolve(dir, match[1]);
-  const parts = path.normalize(gitDir).split(path.sep);
-  const linked = parts.some((part, i) =>
-    part.toLowerCase() === 'worktrees'
-    && i > 0
-    && parts[i - 1].toLowerCase().endsWith('.git')
-    && i < parts.length - 1);
+  // A linked checkout points directly at <common git dir>/worktrees/<id>.
+  // Checking the immediate parent also supports bare repositories whose
+  // directory is not named *.git, while avoiding submodule metadata nested
+  // below a worktree admin dir (.../worktrees/<id>/modules/<submodule>).
+  const linked = path.basename(path.dirname(gitDir)).toLowerCase() === 'worktrees';
   return linked ? 'linked' : 'primary';
 }
 
